@@ -2,7 +2,7 @@
 // Feladat: Billing form kliensoldali validációs szabályai (company/private, VAT, ország/régió).
 // Sárközi Mihály - 2026.05.29
 
-import { isRegionRequired, isValidEuVatId } from "../../../billing/billingCountries";
+import { isRegionRequired, isValidEuVatId } from "../../countries/billingCountries";
 import type { BillingFieldErrors, BillingFormState } from "./billingTypes";
 
 export function validateBillingForm(form: BillingFormState, t: (key: string) => string): BillingFieldErrors {

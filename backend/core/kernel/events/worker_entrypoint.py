@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import importlib
 import logging
 import signal
 import sys
@@ -17,7 +16,6 @@ def build_and_run_worker_process() -> None:
     from core.kernel.runtime.instance_role import (
         InstanceRole,
         get_instance_role,
-        should_run_standalone_billing_worker,
         should_run_standalone_outbox_worker,
     )
     from core.kernel.bootstrap.infrastructure import build_infrastructure
@@ -57,37 +55,25 @@ def build_and_run_worker_process() -> None:
         security_logger=security.base_security_logger,
         audit_service=audit_service,
         email_service=infra.email_service,
-        db_session_factory=db_sf,
     )
     outbox_worker = _build_outbox_worker(
         outbox_repo=outbox_repo,
         dispatcher=dispatcher,
         settings=settings,
     )
-    billing_worker, billing_started = _start_billing_worker_if_enabled(
-        db_sf=db_sf,
-        infra=infra,
-        should_run=should_run_standalone_billing_worker(),
-    )
-    _install_signal_handlers(
-        outbox_worker=outbox_worker,
-        billing_worker=billing_worker,
-        billing_started=billing_started,
-    )
+    _install_signal_handlers(outbox_worker=outbox_worker)
 
     if not should_run_standalone_outbox_worker():
         _log.warning("Standalone outbox worker loop letiltva (OUTBOX_WORKER_LOOP_ENABLED=0).")
-        if billing_started:
-            _log.info("Csak billing worker fut. Ctrl+C vagy SIGTERM hatására leáll.")
-            stop = threading.Event()
-            while not stop.wait(3600):
-                pass
+        stop = threading.Event()
+        while not stop.wait(3600):
+            pass
         return
     _log.info("Outbox worker fut. Ctrl+C vagy SIGTERM hatására leáll.")
     outbox_worker.run_blocking()
 
 
-def _build_dispatcher(*, security_logger, audit_service, email_service, db_session_factory=None):
+def _build_dispatcher(*, security_logger, audit_service, email_service):
     from core.kernel.events.dispatcher import EventDispatcher
     from core.kernel.events.handlers import register_security_audit_handlers
 
@@ -98,13 +84,6 @@ def _build_dispatcher(*, security_logger, audit_service, email_service, db_sessi
         audit_service=audit_service,
         email_service=email_service,
     )
-    try:
-        kb_events_module = importlib.import_module("apps.kb.events")
-        register_kb_event_handlers = getattr(kb_events_module, "register_kb_event_handlers", None)
-        if callable(register_kb_event_handlers):
-            register_kb_event_handlers(dispatcher, session_factory=db_session_factory)
-    except Exception as exc:
-        _log.warning("KB outbox handler regisztráció kihagyva: %s", exc)
     return dispatcher
 
 
@@ -132,36 +111,9 @@ def _build_outbox_worker(*, outbox_repo, dispatcher, settings):
     )
 
 
-def _start_billing_worker_if_enabled(*, db_sf, infra, should_run: bool) -> tuple[object | None, bool]:
-    if not should_run:
-        _log.info("Standalone billing worker loop letiltva (BILLING_WORKER_LOOP_ENABLED=0).")
-        return None, False
-
-    billing_repositories = importlib.import_module("apps.billing.repositories")
-    billing_service_module = importlib.import_module("apps.billing.service")
-    billing_worker_module = importlib.import_module("apps.billing.worker")
-    BillingRepository = getattr(billing_repositories, "BillingRepository")
-    BillingService = getattr(billing_service_module, "BillingService")
-    BillingWorker = getattr(billing_worker_module, "BillingWorker")
-    billing_service = BillingService(
-        repo=BillingRepository(db_sf),
-        tenant_repo=infra.repositories.tenant_repo,
-        session_factory=db_sf,
-        user_repository=infra.repositories.user_repo,
-        email_service=infra.email_service,
-    )
-    billing_service.ensure_storage()
-    billing_worker = BillingWorker()
-    billing_worker.start()
-    _log.info("Standalone billing worker loop elindult.")
-    return billing_worker, True
-
-
-def _install_signal_handlers(*, outbox_worker, billing_worker, billing_started: bool) -> None:
+def _install_signal_handlers(*, outbox_worker) -> None:
     def _handle_signal(sig, frame):
         _log.info("Stop signal (%s) érkezett – a worker leáll…", sig)
-        if billing_worker is not None and billing_started:
-            billing_worker.stop()
         outbox_worker.stop(timeout=10.0)
         sys.exit(0)
 

@@ -11,7 +11,7 @@ import {
   getEuVatPlaceholder,
   isEuBillingCountry,
   isRegionRequired,
-} from "../../../billing/billingCountries";
+} from "../../countries/billingCountries";
 import type { BillingFieldErrors, BillingFormState } from "./billingTypes";
 
 type BillingSettingsSectionProps = {

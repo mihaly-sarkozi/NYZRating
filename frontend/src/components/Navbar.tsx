@@ -2,26 +2,20 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { GearIcon } from "@radix-ui/react-icons";
 import { useTranslation } from "../i18n";
-import { useAuthStore, isDemoInitialPasswordMode } from "../store/authStore";
+import { useAuthStore } from "../store/authStore";
 import { hasUserPermission } from "../platform/permissions";
-import { useBillingOverview } from "../features/billing/hooks/useBilling";
-import { getModuleMenuDefinitions } from "../platform/moduleRegistry";
+import { getModuleMenuDefinitions, getAuthenticatedFallbackPath } from "../platform/moduleRegistry";
 
 type NavbarProps = {
-  onOpenProfile?: () => void;
-  onOpenChangePassword?: () => void;
   topOffsetClassName?: string;
 };
 
 export default function Navbar({
-  onOpenProfile,
-  onOpenChangePassword,
   topOffsetClassName = "top-0",
 }: NavbarProps) {
   const { t } = useTranslation();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const { data: billingOverview } = useBillingOverview({ enabled: user?.role === "owner" });
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -58,15 +52,9 @@ export default function Navbar({
     navigate(path);
   };
 
-  const hasPaidInvoice = (billingOverview?.invoices ?? []).some((invoice) => {
-    const status = String(invoice.status ?? "").trim().toLowerCase();
-    return status === "paid" || status === "simulated_paid";
-  });
-
   const visibleMenuItems = getModuleMenuDefinitions()
     .filter((item) => (item.requiresAuth ? Boolean(user) : true))
     .filter((item) => (item.requiredPermission ? hasUserPermission(user, item.requiredPermission) : true))
-    .filter((item) => (item.key === "billing.menu" ? user?.role === "owner" || hasPaidInvoice : true))
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
     .map((item) => ({
       key: item.key,
@@ -119,7 +107,8 @@ export default function Navbar({
               setMenuOpen(false);
               setProfileMenuOpen(false);
               if (user) {
-                if (location.pathname !== "/chat") navigate("/chat");
+                const fallback = getAuthenticatedFallbackPath();
+                if (location.pathname !== fallback) navigate(fallback);
               } else {
                 navigate("/");
               }
@@ -163,33 +152,6 @@ export default function Navbar({
               </button>
               {profileMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] shadow-lg py-1 z-[60]">
-                  <button
-                    onClick={() => {
-                      if (onOpenProfile) {
-                        setProfileMenuOpen(false);
-                        onOpenProfile();
-                        return;
-                      }
-                      go("/profile");
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--color-border)]/20"
-                  >
-                    {t("nav.account")}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (onOpenChangePassword) {
-                        setProfileMenuOpen(false);
-                        onOpenChangePassword();
-                        return;
-                      }
-                      go("/change-password");
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--color-border)]/20"
-                  >
-                    {t(user && isDemoInitialPasswordMode(user) ? "nav.setInitialPassword" : "nav.changePassword")}
-                  </button>
-                  {profileMenuItems.length > 0 ? <div className="my-1 border-t border-[var(--color-border)]" /> : null}
                   {profileMenuItems.map((item) => (
                     <button
                       key={`profile-${item.key}`}

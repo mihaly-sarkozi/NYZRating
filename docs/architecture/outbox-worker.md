@@ -9,7 +9,6 @@ Az outbox worker a web requesttol levallasztott hattermunkakat futtatja. A web/A
 - `INSTANCE_ROLE=web`: HTTP app, normal esetben nem futtat hosszu worker loopot.
 - `INSTANCE_ROLE=worker`: hattermunkak futtatasa.
 - `OUTBOX_WORKER_LOOP_ENABLED`: worker loop explicit kapcsoloja standalone workerben.
-- `BILLING_WORKER_LOOP_ENABLED`: billing worker explicit kapcsoloja.
 
 ## Event policy
 

@@ -20,22 +20,8 @@ Use this checklist before security-sensitive releases.
 
 - Frontend route permissions match `docs/frontend-permissions.md`.
 - Backend permission services enforce the same ownership/tenant boundaries.
-- Owner-only frontend permissions such as `settings.read` and `chat.channel.manage` stay covered by tests.
-- Cross-tenant knowledge and chat access remains denied in backend tests.
-
-## Knowledge And Ingest
-
-- URL ingest keeps scheme, host, IP, redirect, size, and timeout protections.
-- Object storage keys remain sanitized and tenant scoped.
-- Signed requests and channel credentials reject invalid or cross-tenant credentials.
-- Worker/outbox retries remain idempotent and do not duplicate ingest/index data.
-
-## Chat Persistence
-
-- Chat history remains size-limited and user-key isolated.
-- Malformed persisted JSON does not crash app startup.
-- Local chat history can be cleared from the UI.
-- Persisted chat content is treated as potentially sensitive content, not as auth storage.
+- Owner/admin-only frontend permissions such as `settings.read` and `users.write` stay covered by tests.
+- Cross-tenant access remains denied in backend tests.
 
 ## Error Handling
 

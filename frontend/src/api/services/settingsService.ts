@@ -1,5 +1,7 @@
 import api from "../axiosClient";
-import type { BillingCustomerType } from "../../features/billing/billingCountries";
+import type { BillingCustomerType } from "../../features/settings/countries/billingCountries";
+
+export type { BillingCustomerType };
 
 export type SettingsTimezone =
   | "UTC"
@@ -131,7 +133,6 @@ export type TenantResetResponse = {
   message: string;
   tenant_slug: string;
   owner_user_id: number;
-  default_knowledge_base_uuid?: string | null;
 };
 
 export async function postTenantReset(body: TenantResetPayload): Promise<TenantResetResponse> {

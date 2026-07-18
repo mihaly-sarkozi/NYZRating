@@ -19,7 +19,7 @@ def _create_test_app(module_loader):
 
 
 def test_platform_app_starts_without_business_modules(monkeypatch):
-    monkeypatch.setenv("DISABLED_APP_MODULES", "chat,kb")
+    monkeypatch.setenv("DISABLED_APP_MODULES", "settings")
     app = _create_test_app(load_app_modules)
 
     routes = {getattr(route, "path", "") for route in app.routes}
@@ -27,15 +27,13 @@ def test_platform_app_starts_without_business_modules(monkeypatch):
     assert "/api/auth/login" in routes
     assert "/api/auth/me" in routes
     assert "/api/installer/tenant-signup" in routes
-    assert "/api/settings" in routes
     assert "/api/platform/domain" in routes
     assert "/api/platform/brand" in routes
     assert "/api/platform/lifecycle" in routes
     assert "/api/health" in routes
     assert "/api/health/live" in routes
     assert "/api/health/ready" in routes
-    assert "/api/chat" not in routes
-    assert "/api/kb" not in routes
+    assert "/api/settings" not in routes
 
 
 def test_platform_app_starts_with_explicit_platform_only_manifest():
@@ -52,8 +50,6 @@ def test_platform_app_starts_with_explicit_platform_only_manifest():
     assert "/api/health" in routes
     assert "/api/health/live" in routes
     assert "/api/health/ready" in routes
-    assert "/api/chat" not in routes
-    assert "/api/kb" not in routes
 
 
 def test_manifest_collects_module_lifecycle_hooks():

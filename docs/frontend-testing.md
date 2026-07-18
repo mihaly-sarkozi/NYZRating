@@ -33,9 +33,8 @@ pnpm exec playwright install chromium
 
 ## Coverage Focus
 
-- Vitest and Testing Library cover helpers, permission guards, chat persistence, and key UI components.
-- Component tests currently cover `ChatComposer`, `ChatMessagesList`, `IngestRunProgress`, and `ProtectedRoute`.
-- Playwright smoke tests cover login render, protected route redirect, authenticated KB/chat render, permission denied, and platform-admin login render with mocked API responses.
+- Vitest and Testing Library cover helpers, permission guards, and key UI components.
+- Playwright smoke tests cover login render, protected route redirect, permission denied, and platform-admin login render with mocked API responses.
 
 ## Test Boundaries
 

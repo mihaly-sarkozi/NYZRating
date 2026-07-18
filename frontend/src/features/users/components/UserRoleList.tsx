@@ -8,7 +8,6 @@ type UserRoleListProps = {
   loadMoreRef: React.RefObject<HTMLDivElement | null>;
   t: (key: string) => string;
   onDelete: (user: RoleUser) => void;
-  onKbPermissions: (user: RoleUser) => void;
   onEdit: (user: RoleUser) => void;
   onResendInvite: (user: RoleUser) => void;
   onToggleActive: (user: RoleUser) => void;
@@ -21,7 +20,6 @@ export default function UserRoleList({
   loadMoreRef,
   t,
   onDelete,
-  onKbPermissions,
   onEdit,
   onResendInvite,
   onToggleActive,
@@ -45,7 +43,6 @@ export default function UserRoleList({
               actionLoading={actionLoading}
               t={t}
               onDelete={onDelete}
-              onKbPermissions={onKbPermissions}
               onEdit={onEdit}
               onResendInvite={onResendInvite}
               onToggleActive={onToggleActive}

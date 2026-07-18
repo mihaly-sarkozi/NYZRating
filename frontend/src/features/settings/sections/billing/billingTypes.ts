@@ -2,7 +2,7 @@
 // Feladat: Billing form state és validációs hibatípusok centralizálása.
 // Sárközi Mihály - 2026.05.29
 
-import type { BillingCustomerType } from "../../../billing/billingCountries";
+import type { BillingCustomerType } from "../../countries/billingCountries";
 
 export type BillingFormState = {
   customerType: BillingCustomerType;

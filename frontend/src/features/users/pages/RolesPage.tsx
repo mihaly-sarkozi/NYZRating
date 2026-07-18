@@ -9,8 +9,6 @@ import {
   useDeleteUserMutation,
   useResendInviteMutation,
 } from "../hooks/useUsers";
-import { useKbList } from "../../knowledge-base/hooks/useKb";
-import UserKbAccessModal from "../components/UserKbAccessModal";
 import { getApiErrorMessage } from "../../../utils/getApiErrorMessage";
 import Alert from "../../../components/ui/Alert";
 import RolesHeader from "../components/RolesHeader";
@@ -35,12 +33,8 @@ export default function RolesPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
   const [resendConfirmUser, setResendConfirmUser] = useState<User | null>(null);
-  const [userForKbModal, setUserForKbModal] = useState<User | null>(null);
   const [visibleCount, setVisibleCount] = useState(LIST_PAGE_SIZE);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-
-  const { data: kbListData } = useKbList({ enabled: canManage });
-  const kbList = useMemo(() => (kbListData ?? []).filter((kb) => kb.can_train), [kbListData]);
 
   const createUserMutation = useCreateUserMutation();
   const updateUserMutation = useUpdateUserMutation();
@@ -292,7 +286,6 @@ export default function RolesPage() {
             loadMoreRef={loadMoreRef}
             t={t}
             onDelete={setDeleteConfirmUser}
-            onKbPermissions={setUserForKbModal}
             onEdit={openEditModal}
             onResendInvite={setResendConfirmUser}
             onToggleActive={handleToggleActive}
@@ -344,15 +337,6 @@ export default function RolesPage() {
         onClose={() => setDeleteConfirmUser(null)}
         onConfirm={() => deleteConfirmUser && handleDelete(deleteConfirmUser.id)}
       />
-
-      {/* User KB access modal (tudástár elérhetőség) */}
-      {userForKbModal && (
-        <UserKbAccessModal
-          user={userForKbModal}
-          kbList={kbList}
-          onClose={() => setUserForKbModal(null)}
-        />
-      )}
 
       <UserConfirmModal
         open={Boolean(resendConfirmUser)}

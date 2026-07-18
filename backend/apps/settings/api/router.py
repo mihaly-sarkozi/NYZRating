@@ -186,7 +186,6 @@ def reset_tenant_data(
         message=result.message,
         tenant_slug=result.tenant_slug,
         owner_user_id=result.owner_user_id,
-        default_knowledge_base_uuid=result.default_knowledge_base_uuid,
     )
 
 

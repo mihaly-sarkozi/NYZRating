@@ -15,15 +15,7 @@ from core.kernel.interface import BaseAppModule
 # Az apps modulokat kell regisztrálni az APP_MODULES változóban.
 APP_MODULES: tuple[tuple[str, str], ...] = (
     ("settings", "apps.settings.bootstrap.app_module:get_module"),
-    ("billing", "apps.billing.bootstrap.app_module:get_module"),
-    ("kb", "apps.kb.bootstrap.app_module:get_module"),
-    ("chat", "apps.chat.bootstrap.app_module:get_module"),
     ("demo", "apps.demo.bootstrap.app_module:get_module"),
-    ("landing", "apps.landing.bootstrap.app_module:get_module"),
-    ("orders", "apps.orders.bootstrap.app_module:get_module"),
-    ("packages", "apps.packages.bootstrap.app_module:get_module"),
-    ("profile", "apps.profile.bootstrap.app_module:get_module"),
-    ("traffic", "apps.traffic.bootstrap.app_module:get_module"),
 )
 
 # Az aktív app modulokat tölti be, amelyek nem szerepelnek a DISABLED_APP_MODULES környezeti változóban.

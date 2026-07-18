@@ -66,20 +66,11 @@ def should_run_standalone_outbox_worker() -> bool:
     return _env_flag("OUTBOX_WORKER_LOOP_ENABLED", default=True)
 
 
-def should_run_standalone_billing_worker() -> bool:
-    """True, ha a standalone worker process futtathat periodikus billing loopot."""
-    role = get_instance_role()
-    if role not in {InstanceRole.WORKER, InstanceRole.COMBINED}:
-        return False
-    return _env_flag("BILLING_WORKER_LOOP_ENABLED", default=True)
-
-
 __all__ = [
     "InstanceRole",
     "get_instance_role",
     "is_web_process",
     "is_worker_process",
     "should_run_background_workers",
-    "should_run_standalone_billing_worker",
     "should_run_standalone_outbox_worker",
 ]

@@ -118,60 +118,7 @@ def _is_concrete_repository_module(module: str) -> bool:
     return ".repositories." in text or text.endswith(".repositories")
 
 
-# KB almodulok — kereszt-import tilalom (apps.kb.kb_X nem importál apps.kb.kb_Y-t).
-_KB_MODULE_NAMES = {
-    "kb_crud",
-    "kb_ingest",
-    "kb_understanding",
-    "kb_processing",
-    "kb_discovery",
-    "kb_indexing",
-    "kb_search",
-    "kb_services",
-    "kb_testing",
-    "kb_feedback",
-    "kb_maintenance",
-}
-
-# Kompozíciós gyökér + tesztek: itt megengedett a konkrét kb_* modulok importja.
-_KB_COMPOSITION_ROOT_PREFIXES = (
-    "backend/apps/kb/router.py",
-    "backend/apps/kb/events.py",
-    "backend/apps/kb/module.py",
-    "backend/apps/kb/bootstrap/",
-    "backend/tests/",
-)
-
-
-def _kb_module_of_path(rel: str) -> str | None:
-    prefix = "backend/apps/kb/"
-    if not rel.startswith(prefix):
-        return None
-    first = rel[len(prefix) :].split("/", 1)[0]
-    return first if first in _KB_MODULE_NAMES else None
-
-
-def _kb_module_of_import(module: str) -> str | None:
-    prefix = "apps.kb."
-    if not module.startswith(prefix):
-        return None
-    first = module[len(prefix) :].split(".", 1)[0]
-    return first if first in _KB_MODULE_NAMES else None
-
-
-def _is_kb_composition_root(rel: str) -> bool:
-    return rel.startswith(_KB_COMPOSITION_ROOT_PREFIXES)
-
-
-def _is_kb_shared_layer(rel: str) -> bool:
-    return rel.startswith(("backend/apps/kb/shared/", "backend/apps/kb/ports/"))
-
-
 _ROUTER_INFRA_ALLOWLIST: dict[str, set[str]] = {
-    "backend/apps/chat/router/chat_router.py": {
-        "core.infrastructure.audit.const.audit_log_action_const",
-        "core.infrastructure.audit.service.audit_service",
-    },
     "backend/admin/router/admin_router.py": {
         "core.infrastructure.audit.const.audit_log_action_const",
         "core.infrastructure.audit.service.audit_service",
@@ -191,16 +138,6 @@ def _collect_violations() -> tuple[list[Violation], list[str]]:
         parse_errors.extend(errors)
         for item in imports:
             module = item.module
-            # Rule 1: chat app nem importálhatja közvetlenül a knowledge repository réteget.
-            if rel.startswith("backend/apps/chat/") and module.startswith("apps.knowledge.repositories"):
-                violations.append(
-                    Violation(
-                        path=rel,
-                        line=item.line,
-                        imported_module=module,
-                        rule="chat_cannot_import_knowledge_repositories",
-                    )
-                )
 
             # Rule 2: router/api ne importáljon repository vagy deep infra modulokat.
             if _is_router_file(rel):
@@ -248,32 +185,6 @@ def _collect_violations() -> tuple[list[Violation], list[str]]:
                         )
                     )
 
-            # Rule 5: KB almodulok között tilos a közvetlen kereszt-import.
-            # Kommunikáció: apps/kb/shared contracts/events + container portok.
-            # Kivétel a kompozíciós gyökér (router.py, events.py, module.py, bootstrap/).
-            imported_kb_module = _kb_module_of_import(module)
-            if imported_kb_module is not None and not _is_kb_composition_root(rel):
-                current_kb_module = _kb_module_of_path(rel)
-                if current_kb_module != imported_kb_module:
-                    violations.append(
-                        Violation(
-                            path=rel,
-                            line=item.line,
-                            imported_module=module,
-                            rule="kb_modules_must_not_cross_import",
-                        )
-                    )
-
-            # Rule 6: a kb shared/ports réteg nem importálhat konkrét kb_* modult.
-            if _is_kb_shared_layer(rel) and imported_kb_module is not None:
-                violations.append(
-                    Violation(
-                        path=rel,
-                        line=item.line,
-                        imported_module=module,
-                        rule="kb_shared_must_not_import_kb_modules",
-                    )
-                )
     return violations, parse_errors
 
 

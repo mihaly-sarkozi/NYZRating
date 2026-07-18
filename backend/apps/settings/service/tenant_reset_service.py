@@ -1,43 +1,32 @@
 # backend/apps/settings/service/tenant_reset_service.py
 # Feladat: Tenant teljes adattisztítása — schema újraépítés, owner belépés megőrzése.
+# Megjegyzés: a billing/kb-specifikus lépések eltávolítva, mert azok az app modulok
+# (apps.billing, apps.kb) nem részei az alaprendszernek. Ha egy konkrét app ezekre
+# épít, a saját reset-hook-ját a kernel lifecycle/event rendszerén keresztül kell
+# bekötnie, nem itt.
 # Sárközi Mihály - 2026.06.12
 
 from __future__ import annotations
 
 import logging
-import uuid as uuid_lib
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from apps.billing.repositories import BillingRepository
-from apps.billing.workflows import SubscriptionStatus
-from apps.kb.kb_crud.domain.KbPermissionLevel import KbPermissionLevel
-from apps.kb.kb_crud.orm.KnowledgeBaseORM import KnowledgeBaseORM
-from apps.kb.kb_crud.orm.KnowledgeBasePermissionORM import KnowledgeBasePermissionORM
 from core.kernel.runtime.clock import utc_now
 from core.modules.auth.models.user_authenticator_orm import UserAuthenticatorORM
 from core.modules.tenant.cache import invalidate_tenant_cache
 from core.modules.tenant.context.tenant_context import current_tenant_schema
 from core.modules.tenant.repositories.tenant_repository import TenantRepository
 from core.modules.tenant.schema.service import drop_tenant_schema, upgrade_tenant_schema
-from core.modules.tenant.slug.policy import initial_demo_knowledge_base_name, normalize_demo_locale
 from core.modules.users.models.user_orm import UserORM
-from apps.kb.shared.qdrant_kb_collections import (
-    delete_qdrant_collections,
-    ensure_kb_qdrant_collection,
-    list_qdrant_collection_names,
-)
+from shared.object_storage.service import get_object_storage
 
 logger = logging.getLogger(__name__)
-
-FREE_INCLUDED_TRAINING_CHARS = 500_000
-FREE_TRIAL_DAYS = 7
 
 
 @dataclass(frozen=True)
@@ -46,14 +35,12 @@ class TenantResetResult:
     message: str
     tenant_slug: str
     owner_user_id: int
-    default_knowledge_base_uuid: str | None = None
 
 
 class TenantResetService:
     def __init__(self, session_factory: Callable[[], AbstractContextManager[Any]]) -> None:
         self._sf = session_factory
         self._tenant_repo = TenantRepository(session_factory)
-        self._billing_repo = BillingRepository(session_factory)
 
     def _get_engine(self) -> Engine:
         engine = getattr(self._sf, "engine", None)
@@ -78,13 +65,11 @@ class TenantResetService:
             slug=normalized_slug,
             owner_user_id=owner_user_id,
         )
-        qdrant_collections = self._snapshot_qdrant_collections(normalized_slug)
         self._purge_public_tenant_data(tenant_id)
         self._purge_object_storage(normalized_slug)
 
         engine = self._get_engine()
         drop_tenant_schema(engine, normalized_slug)
-        delete_qdrant_collections(qdrant_collections)
         upgrade_tenant_schema(engine, normalized_slug)
 
         self._restore_owner(
@@ -92,13 +77,7 @@ class TenantResetService:
             owner=owner_snapshot,
             authenticator=authenticator_snapshot,
         )
-        default_kb_uuid = self._ensure_default_knowledge_base(
-            slug=normalized_slug,
-            owner_user_id=owner_user_id,
-            owner_snapshot=owner_snapshot,
-        )
-        self._ensure_default_kb_qdrant_collection(normalized_slug)
-        self._reset_billing_and_config(tenant_id=tenant_id, slug=normalized_slug, owner_user_id=owner_user_id)
+        self._reset_config(tenant_id=tenant_id, slug=normalized_slug, owner_user_id=owner_user_id)
         invalidate_tenant_cache(normalized_slug)
 
         return TenantResetResult(
@@ -106,7 +85,6 @@ class TenantResetService:
             message="A tenant adatai alaphelyzetbe álltak. A tulajdonos belépési adatai változatlanok.",
             tenant_slug=normalized_slug,
             owner_user_id=owner_user_id,
-            default_knowledge_base_uuid=default_kb_uuid,
         )
 
     def _snapshot_owner_auth(
@@ -164,91 +142,10 @@ class TenantResetService:
         finally:
             current_tenant_schema.reset(token)
 
-    def _ensure_default_knowledge_base(
-        self,
-        *,
-        slug: str,
-        owner_user_id: int,
-        owner_snapshot: dict[str, Any],
-    ) -> str | None:
-        token = current_tenant_schema.set(slug)
-        try:
-            with self._sf() as db:
-                existing = (
-                    db.query(KnowledgeBaseORM)
-                    .filter(KnowledgeBaseORM.deleted_at.is_(None))
-                    .first()
-                )
-                if existing is not None:
-                    return str(existing.uuid)
-                locale = normalize_demo_locale(str(owner_snapshot.get("preferred_locale") or "hu"))
-                kb_uuid = str(uuid_lib.uuid4())
-                kb = KnowledgeBaseORM(
-                    uuid=kb_uuid,
-                    name=initial_demo_knowledge_base_name(locale),
-                    description=None,
-                    qdrant_collection_name=f"kb_{kb_uuid}",
-                    pii_depersonalization_enabled=True,
-                    created_by=owner_user_id,
-                    updated_by=owner_user_id,
-                )
-                db.add(kb)
-                db.flush()
-                db.add(
-                    KnowledgeBasePermissionORM(
-                        kb_id=kb.id,
-                        user_id=owner_user_id,
-                        permission=KbPermissionLevel.TRAIN.value,
-                        created_by=owner_user_id,
-                        updated_by=owner_user_id,
-                    )
-                )
-                db.commit()
-                return kb_uuid
-        finally:
-            current_tenant_schema.reset(token)
-
-    def _snapshot_qdrant_collections(self, slug: str) -> list[str]:
-        token = current_tenant_schema.set(slug)
-        try:
-            return list_qdrant_collection_names(self._sf, include_deleted=True)
-        except Exception:
-            logger.exception("tenant_reset_qdrant_snapshot_failed", extra={"tenant_slug": slug})
-            return []
-        finally:
-            current_tenant_schema.reset(token)
-
-    def _ensure_default_kb_qdrant_collection(self, slug: str) -> None:
-        token = current_tenant_schema.set(slug)
-        try:
-            with self._sf() as db:
-                row = (
-                    db.query(KnowledgeBaseORM)
-                    .filter(KnowledgeBaseORM.deleted_at.is_(None))
-                    .order_by(KnowledgeBaseORM.id.asc())
-                    .first()
-                )
-                collection = str(row.qdrant_collection_name or "").strip() if row is not None else ""
-            if collection:
-                if not ensure_kb_qdrant_collection(collection, raise_on_error=True):
-                    raise RuntimeError(f"tenant_reset_qdrant_ensure_failed:{collection}")
-        except Exception:
-            logger.exception("tenant_reset_qdrant_ensure_failed", extra={"tenant_slug": slug})
-        finally:
-            current_tenant_schema.reset(token)
-
     def _purge_public_tenant_data(self, tenant_id: int) -> None:
         statements = [
-            "DELETE FROM public.channel_feedback_events WHERE tenant_id = :tenant_id",
-            "DELETE FROM public.channel_usage_events WHERE tenant_id = :tenant_id",
-            "DELETE FROM public.channel_credentials WHERE tenant_id = :tenant_id",
-            "DELETE FROM public.billing_payment_events WHERE tenant_id = :tenant_id",
-            "DELETE FROM public.billing_invoices WHERE tenant_id = :tenant_id",
-            "DELETE FROM public.billing_question_usage WHERE tenant_id = :tenant_id",
-            "DELETE FROM public.billing_training_usage WHERE tenant_id = :tenant_id",
             "DELETE FROM public.tenant_cancellation_requests WHERE tenant_id = :tenant_id",
             "DELETE FROM public.tenant_domains WHERE tenant_id = :tenant_id",
-            "DELETE FROM public.billing_subscriptions WHERE tenant_id = :tenant_id",
             """
             DELETE FROM public.platform_event_outbox
             WHERE COALESCE(payload->'_meta'->>'tenant_id', payload->>'tenant_id', '') = :tenant_id_text
@@ -273,30 +170,14 @@ class TenantResetService:
                     logger.exception("tenant_reset_public_purge_failed", extra={"tenant_id": tenant_id, "stmt": stmt[:80]})
             db.commit()
 
-    def _reset_billing_and_config(self, *, tenant_id: int, slug: str, owner_user_id: int) -> None:
-        now = utc_now()
-        trial_ends_at = now + timedelta(days=FREE_TRIAL_DAYS)
-        self._billing_repo.upsert_subscription(
-            tenant_id,
-            plan_code="free",
-            billing_period="monthly",
-            status=SubscriptionStatus.TRIAL.value,
-            trial_started_at=now,
-            trial_ends_at=trial_ends_at,
-            carryover_training_chars=FREE_INCLUDED_TRAINING_CHARS,
-        )
+    def _reset_config(self, *, tenant_id: int, slug: str, owner_user_id: int) -> None:
+        utc_now()  # helyben tartva, ha egy konkrét app időbélyeget akar a confighoz kötni
         self._tenant_repo.create_config(
             tenant_id,
             slug=slug,
             package="free",
-            feature_flags={"billing_enabled": True},
-            limits={
-                "knowledge_bases": 1,
-                "storage_gb": 1,
-                "questions_monthly": 100,
-                "training_chars": FREE_INCLUDED_TRAINING_CHARS,
-                "max_users": 5,
-            },
+            feature_flags={},
+            limits={},
             created_by=owner_user_id,
         )
 

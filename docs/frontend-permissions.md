@@ -5,25 +5,20 @@ The frontend uses role-based route permissions in `frontend/src/platform/permiss
 ## Roles
 
 - `owner`: has `*`, so every frontend permission is granted.
-- `admin`: can use chat, read/train knowledge bases, and manage users.
-- `user`: can use chat and read knowledge bases.
+- `admin`: can manage users and read/write settings.
+- `user`: authenticated baseline only (login/refresh/logout); no admin-area permissions.
 
 ## Permission Map
 
-- `chat.use`: `owner`, `admin`, `user`
-- `knowledge.read`: `owner`, `admin`, `user`
-- `knowledge.write`: `owner`, `admin`
-- `knowledge.permissions.manage`: `owner`, `admin`
 - `users.read`, `users.write`, `users.invite`: `owner`, `admin`
-- `settings.read`: owner-only
-- `chat.channel.manage`: owner-only
+- `settings.read`, `settings.write`: `owner`, `admin`
+- `domain.read`, `domain.write`: `owner`, `admin`
 
 ## Route Requirements
 
-- `/chat`: `chat.use`
-- `/chat/channel-access`: `chat.channel.manage`
-- `/kb`, `/kb/create`, `/kb/edit/:uuid`, `/kb/ingest/:uuid`, `/kb/ingest/:uuid/runs/:runId`, `/onboarding/train`: `knowledge.write`
 - `/admin/roles`: `users.write`
-- `/admin/settings`, `/admin/forgalom`, `/admin/szamlak`, `/admin/pricing` and checkout/package admin routes: `settings.read`
+- `/admin/settings`: `settings.read`
 
 `ProtectedRoute` redirects unauthenticated users to `/login` with a safe internal redirect. Authenticated users without the required permission see the shared access denied state instead of the protected page.
+
+Ha egy jövőbeli app-modul saját route-ot regisztrál `requiredPermission`-nel, a hozzá tartozó permission kulcsot itt, a `rolePermissions` térképben is fel kell venni a megfelelő szerepkörökhöz.

@@ -2,7 +2,7 @@
 // Feladat: Billing settings API payload és frontend form state közötti mappolás.
 // Sárközi Mihály - 2026.05.29
 
-import { normalizeEuVatId, normalizePostalCode } from "../../../billing/billingCountries";
+import { normalizeEuVatId, normalizePostalCode } from "../../countries/billingCountries";
 import type { BillingSettingsResponse, PatchBillingSettingsPayload } from "../../api/settingsService";
 import type { BillingFormState } from "./billingTypes";
 

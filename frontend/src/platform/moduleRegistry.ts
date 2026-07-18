@@ -1,12 +1,5 @@
-import { getModule as getBillingModule } from "@apps/billing/web/module";
-import { getModule as getChatModule } from "@apps/chat/web/module";
 import { getModule as getDemoModule } from "@apps/demo/web/module";
-import { getModule as getKbModule } from "@apps/kb/web/module";
-import { getModule as getLandingModule } from "@apps/landing/web/module";
-import { getModule as getPackagesModule } from "@apps/packages/web/module";
-import { getModule as getProfileModule } from "@apps/profile/web/module";
 import { getModule as getSettingsModule } from "@apps/settings/web/module";
-import { getModule as getTrafficModule } from "@apps/traffic/web/module";
 import { getModule as getAuthModule } from "./modules/authModule";
 import { getModule as getPlatformAdminModule } from "./modules/platformAdminModule";
 import { getModule as getUsersModule } from "./modules/usersModule";
@@ -14,18 +7,11 @@ import { getModule as getUsersModule } from "./modules/usersModule";
 import type { FrontendModuleDefinition, FrontendUser, ModuleMenuDefinition, ModuleRouteDefinition } from "./moduleTypes";
 
 const modules: FrontendModuleDefinition[] = [
-  getLandingModule(),
   getDemoModule(),
   getAuthModule(),
   getPlatformAdminModule(),
-  getChatModule(),
-  getProfileModule(),
   getUsersModule(),
-  getTrafficModule(),
-  getBillingModule(),
-  getPackagesModule(),
   getSettingsModule(),
-  getKbModule(),
 ];
 
 export function getFrontendModules(): FrontendModuleDefinition[] {
@@ -51,5 +37,5 @@ export function preloadFrontendModules(user: FrontendUser | null): void {
 }
 
 export function getAuthenticatedFallbackPath(): string {
-  return getModuleMenuDefinitions()[0]?.path ?? "/chat";
+  return getModuleMenuDefinitions()[0]?.path ?? "/";
 }

@@ -8,7 +8,6 @@ type UserRoleCardProps = {
   actionLoading: boolean;
   t: (key: string) => string;
   onDelete: (user: RoleUser) => void;
-  onKbPermissions: (user: RoleUser) => void;
   onEdit: (user: RoleUser) => void;
   onResendInvite: (user: RoleUser) => void;
   onToggleActive: (user: RoleUser) => void;
@@ -20,7 +19,6 @@ export default function UserRoleCard({
   actionLoading,
   t,
   onDelete,
-  onKbPermissions,
   onEdit,
   onResendInvite,
   onToggleActive,
@@ -78,11 +76,6 @@ export default function UserRoleCard({
           {targetEditable && user.id !== currentUser?.id && user.role !== "owner" ? (
             <Button type="button" onClick={() => onDelete(user)} disabled={actionLoading} variant="danger" size="sm" className="!px-3 !py-1.5 text-xs font-semibold">
               {t("common.delete")}
-            </Button>
-          ) : null}
-          {targetEditable && user.role !== "owner" && user.role !== "admin" && user.id !== currentUser?.id ? (
-            <Button type="button" onClick={() => onKbPermissions(user)} disabled={actionLoading} variant="secondary" size="sm" className="!px-3 !py-1.5 text-xs font-semibold">
-              {t("kb.actionPermissions")}
             </Button>
           ) : null}
           {!targetEditable ? (

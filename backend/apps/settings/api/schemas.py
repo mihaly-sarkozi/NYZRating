@@ -62,7 +62,6 @@ class TenantResetResponse(BaseModel):
     message: str
     tenant_slug: str
     owner_user_id: int
-    default_knowledge_base_uuid: str | None = None
 
 
 __all__ = [

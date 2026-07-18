@@ -16,7 +16,6 @@ const useCreateUserMutationMock = vi.fn();
 const useUpdateUserMutationMock = vi.fn();
 const useDeleteUserMutationMock = vi.fn();
 const useResendInviteMutationMock = vi.fn();
-const useKbListMock = vi.fn();
 
 vi.mock("../hooks/useUsers", () => ({
   useUsers: (...args: unknown[]) => useUsersMock(...args),
@@ -24,10 +23,6 @@ vi.mock("../hooks/useUsers", () => ({
   useUpdateUserMutation: (...args: unknown[]) => useUpdateUserMutationMock(...args),
   useDeleteUserMutation: (...args: unknown[]) => useDeleteUserMutationMock(...args),
   useResendInviteMutation: (...args: unknown[]) => useResendInviteMutationMock(...args),
-}));
-
-vi.mock("../../knowledge-base/hooks/useKb", () => ({
-  useKbList: (...args: unknown[]) => useKbListMock(...args),
 }));
 
 vi.mock("sonner", () => ({
@@ -91,7 +86,6 @@ function setupRolesPage(users: RoleUser[] = [owner, admin, regularUser, inactive
   });
 
   useUsersMock.mockReturnValue({ data: users, isLoading: false, error: null });
-  useKbListMock.mockReturnValue({ data: [] });
   useCreateUserMutationMock.mockReturnValue(createMutation);
   useUpdateUserMutationMock.mockReturnValue(updateMutation);
   useDeleteUserMutationMock.mockReturnValue(deleteMutation);
