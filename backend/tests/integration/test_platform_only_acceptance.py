@@ -112,7 +112,7 @@ def test_platform_only_metrics_endpoint_is_tenant_optional():
 
     assert response.status_code == 200
     assert "text/plain" in response.headers["content-type"]
-    assert "# TYPE aiplaza_metric_count counter" in response.text
+    assert "# TYPE nyzrating_metric_count counter" in response.text
 
 
 def test_platform_only_metrics_endpoint_prod_blocks_without_token(monkeypatch: pytest.MonkeyPatch):

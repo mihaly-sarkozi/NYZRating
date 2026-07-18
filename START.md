@@ -1,4 +1,4 @@
-# 🚀 AIPLAZA Elindítási Útmutató
+# 🚀 NYZRating Elindítási Útmutató
 
 ## Előfeltételek
 
@@ -20,15 +20,15 @@ OPENAI_API_KEY=sk-your-openai-api-key
 
 # Opcionális (ha másképp szeretnéd)
 APP_ENV=dev
-database_url=postgresql+psycopg2://postgres:password@localhost:5432/aiplaza
+database_url=postgresql+psycopg2://postgres:password@localhost:5432/nyzrating
 ```
 
 ## 2️⃣ Adatbázis beállítása
 
 ### PostgreSQL adatbázis létrehozása:
 ```bash
-psql -U postgres -c "CREATE DATABASE aiplaza;"
-# vagy: createdb -U postgres aiplaza
+psql -U postgres -c "CREATE DATABASE nyzrating;"
+# vagy: createdb -U postgres nyzrating
 ```
 
 ### Táblák inicializálása:

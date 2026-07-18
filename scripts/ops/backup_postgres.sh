@@ -18,7 +18,7 @@ fi
 : "${DATABASE_URL:?DATABASE_URL is required}"
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
-TARGET="${OUT_DIR}/aiplaza_${STAMP}.dump"
+TARGET="${OUT_DIR}/nyzrating_${STAMP}.dump"
 
 echo "Backing up Postgres to ${TARGET}"
 pg_dump "${DATABASE_URL}" -Fc -f "${TARGET}"

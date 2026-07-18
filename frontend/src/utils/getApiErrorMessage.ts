@@ -62,7 +62,7 @@ export function getApiErrorCode(err: unknown): string | null {
   return null;
 }
 
-/** Szöveges tanítás: ugyanaz a tartalom már szerepel a tudástárban (HTTP 409). */
+/** Szöveges tanítás: ugyanaz a tartalom már szerepel a NYZRatingban (HTTP 409). */
 export function isDuplicateContentError(err: unknown): boolean {
   const parsed = readApiErrorDetail(err);
   if (parsed?.status === 409 && getApiErrorCode(err) === "duplicate_content") return true;

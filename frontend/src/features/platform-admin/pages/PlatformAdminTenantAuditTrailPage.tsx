@@ -69,7 +69,7 @@ const AUDIT_ACTION_FILTERS = [
   },
   {
     id: "knowledge",
-    label: "Tudástár események",
+    label: "NYZRating események",
     actions: ["knowledge_created", "knowledge_deleted", "knowledge_permission_changed", "knowledge_setting_changed"],
   },
   {
@@ -169,7 +169,7 @@ function permissionCapabilities(value: unknown): string[] {
 function auditKnowledgeBaseLabel(details: Record<string, unknown>): string {
   const name = typeof details.kb_name === "string" ? details.kb_name.trim() : "";
   const uuid = typeof details.kb_uuid === "string" ? details.kb_uuid.trim() : "";
-  return name || uuid || "ismeretlen tudástár";
+  return name || uuid || "ismeretlen NYZRating";
 }
 
 function permissionChangeDescriptions(details: Record<string, unknown>): string[] {
@@ -233,7 +233,7 @@ function changeDescriptions(item: PlatformAdminAuditTrailItem): string[] {
 function auditListTitle(item: PlatformAdminAuditTrailItem): string {
   if (item.action !== "knowledge_permission_changed" && item.action !== "knowledge_setting_changed") return item.title;
   const kbName = auditKnowledgeBaseLabel(item.details || {});
-  return kbName && kbName !== "ismeretlen tudástár" ? `${item.title} - ${kbName}` : item.title;
+  return kbName && kbName !== "ismeretlen NYZRating" ? `${item.title} - ${kbName}` : item.title;
 }
 
 function AuditEventCard({ item, timezone }: { item: PlatformAdminAuditTrailItem; timezone?: string | null }) {
@@ -280,7 +280,7 @@ function AuditEventCard({ item, timezone }: { item: PlatformAdminAuditTrailItem;
             </div>
             {knowledgeBaseName ? (
               <div className="md:col-span-2">
-                <span className="font-medium text-[var(--color-foreground)]">Tudástár neve:</span>{" "}
+                <span className="font-medium text-[var(--color-foreground)]">NYZRating neve:</span>{" "}
                 <span className="text-[var(--color-muted)]">{knowledgeBaseName}</span>
               </div>
             ) : null}
@@ -453,7 +453,7 @@ export default function PlatformAdminTenantAuditTrailPage() {
         <PageHeader
           eyebrow="Platform admin"
           title="Audit napló"
-          description="Tenantonkénti autentikációs, user-kezelési és tudástár jogosultsági események időrendben visszafelé."
+          description="Tenantonkénti autentikációs, user-kezelési és NYZRating jogosultsági események időrendben visszafelé."
         />
 
         {error ? <Alert tone="error">{error}</Alert> : null}

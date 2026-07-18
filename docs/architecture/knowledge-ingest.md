@@ -2,7 +2,7 @@
 
 ## Cel
 
-A knowledge ingest a tenant tudastarba erkezo text, file es URL inputokat ingest runokra bontja, majd workerben feldolgozza. Az API feladata a jogosultsag, quota es input validacio utan a run/item/input rekordok letrehozasa es az outbox job publikacio.
+A knowledge ingest a tenant nyzratingba erkezo text, file es URL inputokat ingest runokra bontja, majd workerben feldolgozza. Az API feladata a jogosultsag, quota es input validacio utan a run/item/input rekordok letrehozasa es az outbox job publikacio.
 
 ## Fobb lepesek
 

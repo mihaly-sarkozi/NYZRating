@@ -1,11 +1,11 @@
-# AIPLAZA Go-Live Checklist (P0)
+# NYZRating Go-Live Checklist (P0)
 
 Ez a lista a "valódi billing bekötésen kívüli" go-live minimumot foglalja össze.
 Cél: 60-90 perc alatt végigfuttatható, reprodukálható release gate.
 
 ## 0) Előfeltétel (2 perc)
 
-- A parancsokat a projekt gyökeréből futtasd: `/Users/sarkozimihaly/PycharmProjects/AIPLAZA`
+- A parancsokat a projekt gyökeréből futtasd: `/Users/sarkozimihaly/PycharmProjects/NYZRating`
 - A compose stack fusson:
 
 ```bash

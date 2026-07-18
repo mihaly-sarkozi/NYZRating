@@ -58,7 +58,7 @@ def _configure_otel(settings: Any, app: Any) -> None:
     if not enabled:
         return
     endpoint = str(getattr(settings, "observability_otlp_endpoint", "") or "").strip()
-    service_name = str(getattr(settings, "observability_service_name", "aiplaza-backend") or "aiplaza-backend").strip()
+    service_name = str(getattr(settings, "observability_service_name", "nyzrating-backend") or "nyzrating-backend").strip()
     if not endpoint:
         _log.warning("OpenTelemetry init skipped: observability_otlp_endpoint missing.")
         return

@@ -96,9 +96,9 @@ export default function PlatformAdminStatisticsPage() {
           <>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Card label="Tenantok" value={formatNumber(summary.tenants)} hint={`${formatNumber(summary.active_tenants)} aktív`} />
-              <Card label="Lekérdezések" value={formatNumber(summary.questions)} hint="Billing és tudástár lekérdezések alapján" />
+              <Card label="Lekérdezések" value={formatNumber(summary.questions)} hint="Billing és NYZRating lekérdezések alapján" />
               <Card label="Tanítás" value={formatNumber(summary.training_runs)} hint={`${formatNumber(summary.training_items)} feldolgozott elem`} />
-              <Card label="Tárhely összesen" value={formatBytes(summary.storage_bytes)} hint={`${formatNumber(summary.knowledge_bases)} tudástár`} />
+              <Card label="Tárhely összesen" value={formatBytes(summary.storage_bytes)} hint={`${formatNumber(summary.knowledge_bases)} NYZRating`} />
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -112,7 +112,7 @@ export default function PlatformAdminStatisticsPage() {
               <Card label="Felhasználók" value={formatNumber(summary.users)} />
               <Card label="Tanított karakter" value={formatNumber(summary.trained_chars)} />
               <Card label="Aldomainek" value={formatNumber(summary.domains)} hint={`${formatNumber(summary.verified_domains)} ellenőrzött`} />
-              <Card label="Tudástárak" value={formatNumber(summary.knowledge_bases)} />
+              <Card label="NYZRatingak" value={formatNumber(summary.knowledge_bases)} />
             </div>
 
             <Section title="Tenantonkénti bontás">

@@ -30,6 +30,6 @@ Az auth adatok többsége tenant sémában él: refresh tokenek, 2FA kódok, 2FA
 
 ## Platform Jelleg
 
-Ez core platform modul, nem kernel framework elem. Általános auth képességet ad minden tenant appnak, de konkrét AIPLAZA platform szabályokat is tartalmaz, például tenant security version, demo-login és platform-admin token típus támogatást. Ezért helye a `core/modules/auth`, nem a `core/kernel`.
+Ez core platform modul, nem kernel framework elem. Általános auth képességet ad minden tenant appnak, de konkrét NYZRating platform szabályokat is tartalmaz, például tenant security version, demo-login és platform-admin token típus támogatást. Ezért helye a `core/modules/auth`, nem a `core/kernel`.
 
 ## Sárközi Mihály - 2026.05.21

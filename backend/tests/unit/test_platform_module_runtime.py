@@ -60,7 +60,7 @@ class _VerifyServiceStub:
         return SimpleNamespace(domain=domain, verified_at=datetime.now(timezone.utc))
 
     def challenge_for_domain(self, domain: str, *, tenant_id: int):
-        return (f"_aiplaza-challenge.{domain}", f"token-{tenant_id}")
+        return (f"_nyzrating-challenge.{domain}", f"token-{tenant_id}")
 
     def cname_target(self) -> str:
         return "app.test"

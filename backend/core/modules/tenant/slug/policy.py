@@ -32,7 +32,7 @@ def normalize_demo_locale(locale: str | None) -> str:
 
 def initial_demo_knowledge_base_name(locale: str) -> str:
     names = {
-        "hu": "Teszt tudástár",
+        "hu": "Teszt NYZRating",
         "en": "Test knowledge base",
         "es": "Base de conocimiento de prueba",
     }

@@ -1,4 +1,4 @@
-# AIPLAZA P0 Observability Alert Set
+# NYZRating P0 Observability Alert Set
 
 Ez a minimum P0 riasztási csomag a `/api/metrics` exportban lévő metrikákhoz.
 

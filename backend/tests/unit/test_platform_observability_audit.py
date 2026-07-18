@@ -62,7 +62,7 @@ def test_brand_service_audits_platform_admin_write():
 
     service.update_brand(
         BrandUpdateRequest(
-            display_name="AIPLAZA",
+            display_name="NYZRating",
             logo_url="https://cdn.example.com/logo.png",
             primary_color="#2563eb",
             support_email="support@example.com",

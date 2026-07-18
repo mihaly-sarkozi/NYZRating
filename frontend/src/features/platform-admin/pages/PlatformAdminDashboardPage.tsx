@@ -142,7 +142,7 @@ export default function PlatformAdminDashboardPage() {
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Regisztrációk száma" value={loadingTenants ? "..." : formatNumber(summary?.tenants)} hint="AI oldalak összesen" />
-        <StatCard label="Tudástárak száma" value={loadingTenants ? "..." : formatNumber(summary?.knowledge_bases)} />
+        <StatCard label="NYZRatingak száma" value={loadingTenants ? "..." : formatNumber(summary?.knowledge_bases)} />
         <StatCard label="Felhasználók száma" value={loadingTenants ? "..." : formatNumber(summary?.users)} />
         <StatCard label="Adott évben befizetett összeg" value={loadingTenants ? "..." : formatMoneyCents(summary?.paid_this_year_cents)} />
         <StatCard label="Várható éves bevétel" value={loadingTenants ? "..." : formatMoneyCents(summary?.expected_annual_revenue_cents)} />

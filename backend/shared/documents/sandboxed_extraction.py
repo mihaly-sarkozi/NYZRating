@@ -93,7 +93,7 @@ def extract_document_with_limits(
     ctx = _parser_context()
     result_path = ""
     try:
-        fd, result_path = tempfile.mkstemp(prefix="aiplaza_extract_", suffix=".pkl")
+        fd, result_path = tempfile.mkstemp(prefix="nyzrating_extract_", suffix=".pkl")
         os.close(fd)
         os.chmod(result_path, stat.S_IRUSR | stat.S_IWUSR)
         process = ctx.Process(

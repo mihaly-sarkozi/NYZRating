@@ -10,7 +10,7 @@ import type { Locale } from "../../../i18n";
 import Alert from "../../../components/ui/Alert";
 import Button from "../../../components/ui/Button";
 
-const LOGIN_REMEMBER_EMAIL_KEY = "AIPLAZA_login_remember_email";
+const LOGIN_REMEMBER_EMAIL_KEY = "NYZRating_login_remember_email";
 const LOGIN_COOLDOWN_SECONDS = 30;
 
 export default function Login() {

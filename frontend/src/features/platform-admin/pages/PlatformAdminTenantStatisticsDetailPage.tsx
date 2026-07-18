@@ -12,7 +12,7 @@ type ChartKey = "training_chars" | "questions" | "usage_hours";
 const LIMIT_LABELS: Record<string, { label: string; unit?: string; formatter?: (value: number) => string }> = {
   max_users: { label: "Felhasználók száma", unit: "fő" },
   users: { label: "Felhasználók száma", unit: "fő" },
-  knowledge_bases: { label: "Tudástárak száma", unit: "db" },
+  knowledge_bases: { label: "NYZRatingak száma", unit: "db" },
   storage_gb: { label: "Tárhely", unit: "GB" },
   training_chars_available: { label: "Tanítási karakterkeret", unit: "karakter" },
   included_training_chars: { label: "Alap tanítási karakterkeret", unit: "karakter" },

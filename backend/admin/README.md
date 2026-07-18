@@ -1,6 +1,6 @@
 # backend/admin
 
-A `backend/admin` könyvtár a platform-admin backend önálló területe. Nem része a `core/kernel` általános framework rétegének, és nem tenant/app feature az `apps` alatt; a teljes AIPLAZA platform üzemeltetéséhez tartozó admin login, MFA, admin user kezelés, tenant statisztika, security monitoring, alert kezelés és IP tiltás funkciókat fogja össze.
+A `backend/admin` könyvtár a platform-admin backend önálló területe. Nem része a `core/kernel` általános framework rétegének, és nem tenant/app feature az `apps` alatt; a teljes NYZRating platform üzemeltetéséhez tartozó admin login, MFA, admin user kezelés, tenant statisztika, security monitoring, alert kezelés és IP tiltás funkciókat fogja össze.
 
 ## Fő felelősség
 

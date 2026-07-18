@@ -1,4 +1,4 @@
-title = "AIPLAZA Gitleaks Config"
+title = "NYZRating Gitleaks Config"
 
 [allowlist]
   description = "Tesztkörnyezeti dummy értékek"

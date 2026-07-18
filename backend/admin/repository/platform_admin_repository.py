@@ -911,10 +911,10 @@ class PlatformAdminRepository:
             "invite_resent": "Meghívó újraküldve",
             "forgot_password_link_sent": "Jelszóbeállító link kiküldve",
             "email_confirmed": "Email link megerősítve",
-            "knowledge_created": "Tudástár létrehozva",
-            "knowledge_deleted": "Tudástár törölve",
-            "knowledge_permission_changed": "Tudástár jogosultság módosítva",
-            "knowledge_setting_changed": "Tudástár beállítás módosítva",
+            "knowledge_created": "NYZRating létrehozva",
+            "knowledge_deleted": "NYZRating törölve",
+            "knowledge_permission_changed": "NYZRating jogosultság módosítva",
+            "knowledge_setting_changed": "NYZRating beállítás módosítva",
         }
         return labels.get(action, action.replace("_", " ").capitalize())
 
@@ -937,15 +937,15 @@ class PlatformAdminRepository:
             return f"{email or 'Felhasználó'} törölve"
         if action == "knowledge_permission_changed":
             return (
-                f"{details.get('email') or 'Felhasználó'} tudástár joga: "
+                f"{details.get('email') or 'Felhasználó'} NYZRating joga: "
                 f"{details.get('old_permission')} -> {details.get('new_permission')}"
             )
         if action == "knowledge_created":
-            return f"{details.get('kb_name') or 'Tudástár'} létrehozva"
+            return f"{details.get('kb_name') or 'NYZRating'} létrehozva"
         if action == "knowledge_deleted":
-            return f"{details.get('kb_name') or 'Tudástár'} törölve"
+            return f"{details.get('kb_name') or 'NYZRating'} törölve"
         if action == "knowledge_setting_changed":
-            return f"{details.get('kb_name') or 'Tudástár'} beállítása módosítva: {details.get('field') or '-'}"
+            return f"{details.get('kb_name') or 'NYZRating'} beállítása módosítva: {details.get('field') or '-'}"
         if action in {"login_success", "login_failed", "login_2fa_success", "login_2fa_failed", "logout"}:
             reason = details.get("reason")
             return f"{email or 'Felhasználó'}" + (f" ({reason})" if reason else "")

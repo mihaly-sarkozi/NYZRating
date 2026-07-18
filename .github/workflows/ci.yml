@@ -79,7 +79,7 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: aiplaza_test
+          POSTGRES_DB: nyzrating_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: testpassword
         ports:
@@ -92,7 +92,7 @@ jobs:
 
     env:
       APP_ENV: "test"
-      APP_NAME: "AIPLAZA Test"
+      APP_NAME: "NYZRating Test"
       APP_DESCRIPTION: "CI integration test"
       APP_VERSION: "test"
       API_HOST: "127.0.0.1"
@@ -111,7 +111,7 @@ jobs:
       CHAT_MODEL: "gpt-4o-mini"
       OLLAMA_URL: "http://localhost:11434"
       OBJECT_STORAGE_ENDPOINT: "http://localhost:9000"
-      OBJECT_STORAGE_BUCKET: "aiplaza-test"
+      OBJECT_STORAGE_BUCKET: "nyzrating-test"
       REDIS_URL: "redis://localhost:6379/0"
       SMTP_HOST: "localhost"
       SMTP_USER: "test"
@@ -125,7 +125,7 @@ jobs:
       QDRANT_URL: "http://localhost:6333"
       QDRANT_API_KEY: "test-qdrant-key"
       OPENAI_API_KEY: "test-openai-api-key"
-      DATABASE_URL: "postgresql+psycopg2://postgres:testpassword@localhost:5432/aiplaza_test"
+      DATABASE_URL: "postgresql+psycopg2://postgres:testpassword@localhost:5432/nyzrating_test"
 
     steps:
       - uses: actions/checkout@v4

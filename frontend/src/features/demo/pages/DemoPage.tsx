@@ -134,7 +134,7 @@ export default function DemoPage() {
           Tölts fel néhány dokumentumot, és tegyél fel valós kérdéseket.
         </p>
         <p className="text-base text-[var(--color-muted-foreground)] mb-8">
-          Megmutatjuk, hogyan működik a tudástár a saját tartalmaiddal.
+          Megmutatjuk, hogyan működik a NYZRating a saját tartalmaiddal.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

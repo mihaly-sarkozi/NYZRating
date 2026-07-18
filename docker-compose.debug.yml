@@ -2,7 +2,7 @@
 # Használat: docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
 # Vagy: ./scripts/docker-debug-up.sh
 
-name: aiplaza
+name: nyzrating
 
 services:
   backend:

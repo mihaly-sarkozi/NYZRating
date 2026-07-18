@@ -1,11 +1,11 @@
-name: aiplaza-preprod
+name: nyzrating-preprod
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: aiplaza-preprod-postgres
+    container_name: nyzrating-preprod-postgres
     environment:
-      POSTGRES_DB: aiplaza
+      POSTGRES_DB: nyzrating
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     ports:
@@ -13,14 +13,14 @@ services:
     volumes:
       - preprod_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d aiplaza"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nyzrating"]
       interval: 5s
       timeout: 5s
       retries: 20
 
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: aiplaza-preprod-qdrant
+    container_name: nyzrating-preprod-qdrant
     ports:
       - "6333:6333"
     volumes:
@@ -28,7 +28,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: aiplaza-preprod-minio
+    container_name: nyzrating-preprod-minio
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-change-me}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me}
@@ -41,7 +41,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: aiplaza-preprod-redis
+    container_name: nyzrating-preprod-redis
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - preprod_redis_data:/data
@@ -56,14 +56,14 @@ services:
     build:
       context: .
       dockerfile: docker/backend.prod.Dockerfile
-    container_name: aiplaza-preprod-backend
+    container_name: nyzrating-preprod-backend
     env_file:
       - .env
     environment:
       APP_ENV: preprod
       INSTANCE_ROLE: web
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/aiplaza
-      database_url: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/aiplaza
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/nyzrating
+      database_url: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/nyzrating
       QDRANT_URL: http://qdrant:6333
       OBJECT_STORAGE_ENDPOINT: http://minio:9000
       BILLING_PROVIDER: ${BILLING_PROVIDER:-simulated}
@@ -97,14 +97,14 @@ services:
     build:
       context: .
       dockerfile: docker/backend.prod.Dockerfile
-    container_name: aiplaza-preprod-worker
+    container_name: nyzrating-preprod-worker
     env_file:
       - .env
     environment:
       APP_ENV: preprod
       INSTANCE_ROLE: worker
-      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/aiplaza
-      database_url: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/aiplaza
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/nyzrating
+      database_url: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-change-me}@postgres:5432/nyzrating
       QDRANT_URL: http://qdrant:6333
       OBJECT_STORAGE_ENDPOINT: http://minio:9000
       BILLING_PROVIDER: ${BILLING_PROVIDER:-simulated}
@@ -127,7 +127,7 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.prod.Dockerfile
-    container_name: aiplaza-preprod-frontend
+    container_name: nyzrating-preprod-frontend
     environment:
       VITE_TENANT_DOMAIN: ${TENANT_BASE_DOMAIN:-lvh.me}
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8001/api}

@@ -395,7 +395,7 @@ class LoginService(TransactionalServiceMixin):
         raw = uuid.uuid4().bytes + uuid.uuid4().bytes
         return base64.b32encode(raw[:byte_length]).decode("ascii").rstrip("=")
 
-    def start_authenticator_setup(self, user_id: int, user_email: str, *, issuer: str = "AIPLAZA") -> dict:
+    def start_authenticator_setup(self, user_id: int, user_email: str, *, issuer: str = "NYZRating") -> dict:
         secret = self._base32_secret()
         expires_at = self.clock.now() + timedelta(minutes=10)
         self.user_authenticator_repository.upsert_pending_secret(
@@ -405,7 +405,7 @@ class LoginService(TransactionalServiceMixin):
             updated_by=user_id,
         )
         account_name = (user_email or "").strip() or f"user-{user_id}"
-        issuer_value = quote((issuer or "AIPLAZA").strip(), safe="")
+        issuer_value = quote((issuer or "NYZRating").strip(), safe="")
         account_value = quote(account_name, safe="")
         otpauth_uri = (
             f"otpauth://totp/{issuer_value}:{account_value}"

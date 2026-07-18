@@ -89,7 +89,7 @@ export async function consumeDemoLogin(token: string): Promise<{ access_token: s
 }
 
 /**
- * Tudástár névből → slug (backend-kompatibilis). Ország kód egyelőre nincs.
+ * NYZRating névből → slug (backend-kompatibilis). Ország kód egyelőre nincs.
  */
 export function normalizeSlug(kbName: string): string {
   return (kbName || "")

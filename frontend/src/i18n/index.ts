@@ -3,7 +3,7 @@ import type { Locale, TranslationTree } from "./translations";
 import { translations } from "./translations";
 
 const DEFAULT_LOCALE: Locale = "hu";
-const THEME_STORAGE_KEY = "AIPLAZA_theme";
+const THEME_STORAGE_KEY = "NYZRating_theme";
 export type Theme = "light" | "dark";
 
 function applyThemeToDocument(theme: Theme) {

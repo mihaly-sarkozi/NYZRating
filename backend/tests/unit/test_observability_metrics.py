@@ -31,10 +31,10 @@ def test_prometheus_export_contains_native_histogram_series() -> None:
 
     payload = render_prometheus_metrics()
 
-    assert "# TYPE aiplaza_platform_request_latency_ms histogram" in payload
-    assert 'aiplaza_platform_request_latency_ms_bucket{path_group="auth",le="25"} 1' in payload
-    assert 'aiplaza_platform_request_latency_ms_bucket{path_group="auth",le="+Inf"} 2' in payload
-    assert 'aiplaza_platform_request_latency_ms_count{path_group="auth"} 2' in payload
+    assert "# TYPE nyzrating_platform_request_latency_ms histogram" in payload
+    assert 'nyzrating_platform_request_latency_ms_bucket{path_group="auth",le="25"} 1' in payload
+    assert 'nyzrating_platform_request_latency_ms_bucket{path_group="auth",le="+Inf"} 2' in payload
+    assert 'nyzrating_platform_request_latency_ms_count{path_group="auth"} 2' in payload
 
 
 def test_prometheus_export_keeps_distinct_tag_series() -> None:
@@ -44,5 +44,5 @@ def test_prometheus_export_keeps_distinct_tag_series() -> None:
 
     payload = render_prometheus_metrics()
 
-    assert 'aiplaza_platform_request_latency_ms_count{path_group="auth"} 1' in payload
-    assert 'aiplaza_platform_request_latency_ms_count{path_group="chat"} 1' in payload
+    assert 'nyzrating_platform_request_latency_ms_count{path_group="auth"} 1' in payload
+    assert 'nyzrating_platform_request_latency_ms_count{path_group="chat"} 1' in payload

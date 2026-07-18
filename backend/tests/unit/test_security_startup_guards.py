@@ -19,7 +19,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.must_pass]
 
 def _base_config_env(**overrides: str) -> dict[str, str]:
     env = {
-        "APP_NAME": "AIPLAZA Test",
+        "APP_NAME": "NYZRating Test",
         "APP_DESCRIPTION": "Unit test settings",
         "APP_VERSION": "test",
         "API_HOST": "127.0.0.1",
@@ -33,7 +33,7 @@ def _base_config_env(**overrides: str) -> dict[str, str]:
         "DATABASE_POOL_PRE_PING": "true",
         "METRICS_ALLOWED_IPS": "127.0.0.1",
         "LOG_LEVEL": "INFO",
-        "JWT_ISSUER": "AIPLAZA",
+        "JWT_ISSUER": "NYZRating",
         "JWT_AUDIENCE": "api.example.com",
         "COOKIE_SECURE": "true",
         "CHAT_PROVIDER": "ollama",
@@ -42,9 +42,9 @@ def _base_config_env(**overrides: str) -> dict[str, str]:
         "QDRANT_URL": "http://localhost:6333",
         "QDRANT_API_KEY": "",
         "OBJECT_STORAGE_ENDPOINT": "https://objects.example.com",
-        "OBJECT_STORAGE_BUCKET": "aiplaza-test",
+        "OBJECT_STORAGE_BUCKET": "nyzrating-test",
         "PLATFORM_ADMIN_ALLOWED_IPS": "127.0.0.1",
-        "INVOICE_ISSUER_NAME": "AIPLAZA",
+        "INVOICE_ISSUER_NAME": "NYZRating",
         "INVOICE_ISSUER_TAX_ID": "12345678-1-42",
         "INVOICE_ISSUER_ADDRESS_LINE": "Test street 1",
         "INVOICE_ISSUER_POSTAL_CODE": "1000",
@@ -64,7 +64,7 @@ def prod_env(**overrides: str):
     env = {
         "APP_ENV": "production",
         "DATABASE_URL": "postgresql://test:test@localhost:5432/test",
-        "JWT_ISSUER": "AIPLAZA",
+        "JWT_ISSUER": "NYZRating",
         "JWT_AUDIENCE": "api.example.com",
         "FRONTEND_BASE_URL": "https://app.example.com",
         "CORS_ORIGINS": "https://app.example.com",
@@ -96,13 +96,13 @@ def _settings(**kwargs):
         access_ttl_min=15,
         refresh_ttl_days=30,
         refresh_ttl_session_hours=24,
-        jwt_issuer="AIPLAZA",
+        jwt_issuer="NYZRating",
         jwt_audience="api.example.com",
         smtp_host="localhost",
         smtp_user="test",
         smtp_password="test",
         smtp_from_email="noreply@example.com",
-        smtp_from_name="AIPLAZA Test",
+        smtp_from_name="NYZRating Test",
         demo_signup_require_captcha=True,
         demo_signup_captcha_provider="turnstile",
         demo_signup_captcha_secret="test-secret",
@@ -113,7 +113,7 @@ def _settings(**kwargs):
         object_storage_enabled=True,
         object_storage_provider="s3_compatible",
         object_storage_endpoint="https://objects.example.com",
-        object_storage_bucket="aiplaza-prod",
+        object_storage_bucket="nyzrating-prod",
     )
     base.update(kwargs)
     return SimpleNamespace(**base)
@@ -197,7 +197,7 @@ def test_prod_bootstrap_fails_when_redis_missing_for_critical_runtime():
 def test_security_startup_checks_wraps_domain_policy_errors():
     with prod_env(JWT_SECRET="0123456789abcdef" * 4):
         with pytest.raises(SecurityConfigError, match="jwt_audience"):
-            run_security_startup_checks(_settings(jwt_audience="AIPLAZA"), env="production")
+            run_security_startup_checks(_settings(jwt_audience="NYZRating"), env="production")
 
 
 def test_prod_bootstrap_fails_when_simulated_billing_provider_enabled():

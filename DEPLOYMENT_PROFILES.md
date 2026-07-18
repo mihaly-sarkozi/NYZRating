@@ -1,4 +1,4 @@
-# AIPLAZA Deployment Profiles
+# NYZRating Deployment Profiles
 
 Ez a dokumentum a fejlesztői és preprod/prod futtatási mintát választja szét.
 

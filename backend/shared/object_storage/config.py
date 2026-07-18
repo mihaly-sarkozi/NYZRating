@@ -34,7 +34,7 @@ def load_object_storage_config() -> ObjectStorageConfig:
         region=str(getattr(settings, "object_storage_region", "us-east-1") or "us-east-1"),
         access_key=str(getattr(settings, "object_storage_access_key", "") or ""),
         secret_key=str(getattr(settings, "object_storage_secret_key", "") or ""),
-        bucket=str(getattr(settings, "object_storage_bucket", "test-bucket-aiplaza") or "test-bucket-aiplaza"),
+        bucket=str(getattr(settings, "object_storage_bucket", "test-bucket-nyzrating") or "test-bucket-nyzrating"),
         secure=bool(getattr(settings, "object_storage_secure", False)),
         force_path_style=bool(getattr(settings, "object_storage_force_path_style", True)),
     )

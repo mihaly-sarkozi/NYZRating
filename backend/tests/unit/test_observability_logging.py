@@ -57,9 +57,9 @@ def test_prometheus_metrics_export_uses_text_format():
     record_span("tenant_resolve", 12.5)
     body = render_prometheus_metrics()
 
-    assert "# TYPE aiplaza_metric_count counter" in body
-    assert 'aiplaza_metric_count{metric="platform_tenant_resolve_ms"} 1.0' in body
-    assert 'aiplaza_metric_sum{metric="platform_tenant_resolve_ms"} 12.5' in body
+    assert "# TYPE nyzrating_metric_count counter" in body
+    assert 'nyzrating_metric_count{metric="platform_tenant_resolve_ms"} 1.0' in body
+    assert 'nyzrating_metric_sum{metric="platform_tenant_resolve_ms"} 12.5' in body
 
     clear_request_timing()
     reset_metrics()

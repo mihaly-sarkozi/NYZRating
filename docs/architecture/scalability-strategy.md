@@ -1,4 +1,4 @@
-# AIPLAZA skálázási stratégia
+# NYZRating skálázási stratégia
 
 Ez a dokumentum a jelenlegi architektúra skálázási határait és az 1k+ tenant / magas ingest terhelés előtti döntéseket rögzíti. **Elsődleges szempont: migráció idő és tranzakció-biztonság**, nem a futásidejű query teljesítmény.
 

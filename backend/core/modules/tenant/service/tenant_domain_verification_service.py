@@ -27,7 +27,7 @@ class TenantDomainVerificationService:
 
     @staticmethod
     def _challenge_name(domain: str) -> str:
-        return f"_aiplaza-challenge.{domain}"
+        return f"_nyzrating-challenge.{domain}"
 
     @staticmethod
     def _resolve_txt_values(record_name: str) -> set[str]:
@@ -56,7 +56,7 @@ class TenantDomainVerificationService:
 
     @staticmethod
     def _challenge_token(domain: str, tenant_id: int) -> str:
-        secret = (settings.jwt_secret or settings.tenant_base_domain or "aiplaza").encode("utf-8")
+        secret = (settings.jwt_secret or settings.tenant_base_domain or "nyzrating").encode("utf-8")
         payload = f"{tenant_id}:{domain}".encode("utf-8")
         digest = hmac.new(secret, payload, sha256).hexdigest()
         return digest[:32]

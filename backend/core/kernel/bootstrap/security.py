@@ -59,11 +59,11 @@ def build_security(
     effective_clock = clock or SystemClock()
     base_security_logger = SecurityLogger()
 
-    issuer = (getattr(settings, "jwt_issuer", "AIPLAZA") or "AIPLAZA").strip()
+    issuer = (getattr(settings, "jwt_issuer", "NYZRating") or "NYZRating").strip()
     audience = (getattr(settings, "jwt_audience", "") or "").strip()
     token_service = TokenService(
         secret=settings.jwt_secret,
-        issuer=issuer or "AIPLAZA",
+        issuer=issuer or "NYZRating",
         audience=audience or None,
         access_exp_min=settings.access_ttl_min,
         refresh_exp_min=settings.refresh_ttl_days * 24 * 60,

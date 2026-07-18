@@ -11,26 +11,26 @@ from core.kernel.observability.metric_registry import InMemoryMetricRegistry, Me
 
 def render_prometheus_metrics_from_registry(registry: InMemoryMetricRegistry) -> str:
     lines = [
-        "# HELP aiplaza_metric_count Observed metric sample count.",
-        "# TYPE aiplaza_metric_count counter",
-        "# HELP aiplaza_metric_sum Observed metric sample sum.",
-        "# TYPE aiplaza_metric_sum gauge",
-        "# HELP aiplaza_metric_last Last observed metric sample.",
-        "# TYPE aiplaza_metric_last gauge",
-        "# HELP aiplaza_metric_p95 Approximate p95 from local samples.",
-        "# TYPE aiplaza_metric_p95 gauge",
-        "# HELP aiplaza_metric_p99 Approximate p99 from local samples.",
-        "# TYPE aiplaza_metric_p99 gauge",
+        "# HELP nyzrating_metric_count Observed metric sample count.",
+        "# TYPE nyzrating_metric_count counter",
+        "# HELP nyzrating_metric_sum Observed metric sample sum.",
+        "# TYPE nyzrating_metric_sum gauge",
+        "# HELP nyzrating_metric_last Last observed metric sample.",
+        "# TYPE nyzrating_metric_last gauge",
+        "# HELP nyzrating_metric_p95 Approximate p95 from local samples.",
+        "# TYPE nyzrating_metric_p95 gauge",
+        "# HELP nyzrating_metric_p99 Approximate p99 from local samples.",
+        "# TYPE nyzrating_metric_p99 gauge",
     ]
     for name, values in sorted(registry.snapshot().items()):
         labels = _prometheus_labels(name, values.get("tags"))
-        lines.append(f"aiplaza_metric_count{{{labels}}} {float(values.get('count') or 0.0)}")
-        lines.append(f"aiplaza_metric_sum{{{labels}}} {float(values.get('sum') or 0.0)}")
-        lines.append(f"aiplaza_metric_last{{{labels}}} {float(values.get('last') or 0.0)}")
-        lines.append(f"aiplaza_metric_p95{{{labels}}} {float(values.get('p95') or 0.0)}")
-        lines.append(f"aiplaza_metric_p99{{{labels}}} {float(values.get('p99') or 0.0)}")
+        lines.append(f"nyzrating_metric_count{{{labels}}} {float(values.get('count') or 0.0)}")
+        lines.append(f"nyzrating_metric_sum{{{labels}}} {float(values.get('sum') or 0.0)}")
+        lines.append(f"nyzrating_metric_last{{{labels}}} {float(values.get('last') or 0.0)}")
+        lines.append(f"nyzrating_metric_p95{{{labels}}} {float(values.get('p95') or 0.0)}")
+        lines.append(f"nyzrating_metric_p99{{{labels}}} {float(values.get('p99') or 0.0)}")
         if "max" in values:
-            lines.append(f"aiplaza_metric_max{{{labels}}} {float(values.get('max') or 0.0)}")
+            lines.append(f"nyzrating_metric_max{{{labels}}} {float(values.get('max') or 0.0)}")
     for series in sorted(registry.iter_series(), key=lambda item: (item.name, tuple(sorted(item.tags.items())))):
         lines.extend(_render_native_histogram_for_series(series))
     return "\n".join(lines) + "\n"
@@ -69,7 +69,7 @@ def _prometheus_series_labels(tags: dict[str, Any] | None) -> str:
 
 
 def _render_native_histogram_for_series(series: MetricSeries) -> list[str]:
-    base = f"aiplaza_{_prometheus_name(series.name)}"
+    base = f"nyzrating_{_prometheus_name(series.name)}"
     labels = _prometheus_series_labels(series.tags)
     lines = [
         f"# HELP {base} Histogram for metric '{series.name}'.",

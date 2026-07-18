@@ -32,7 +32,7 @@ export interface User {
   /** False until the user sets a real password (e.g. demo magic-link users). */
   credentials_password_set?: boolean;
   tenant_demo_mode?: boolean;
-  /** Van-e már betanított anyag a tenant tudástárában (billing alapján). */
+  /** Van-e már betanított anyag a tenant NYZRatingában (billing alapján). */
   tenant_kb_has_training?: boolean;
 }
 

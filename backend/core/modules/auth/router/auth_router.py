@@ -331,7 +331,7 @@ def authenticator_setup(
     user: User = Depends(get_current_user),
     svc: LoginService = Depends(get_login_service),
 ):
-    issuer = getattr(settings, "authenticator_issuer", "AIPLAZA")
+    issuer = getattr(settings, "authenticator_issuer", "NYZRating")
     return svc.start_authenticator_setup(user.id, user.email, issuer=issuer)
 
 

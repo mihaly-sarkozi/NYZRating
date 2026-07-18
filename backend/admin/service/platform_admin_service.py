@@ -179,7 +179,7 @@ class PlatformAdminService:
         if not recipient or not self.email_service:
             return
         try:
-            subject = "AIPLAZA platform admin security alert"
+            subject = "NYZRating platform admin security alert"
             body = (
                 "Platform admin MFA lockout esemény történt.\n\n"
                 f"Email: {user.email}\n"
@@ -227,7 +227,7 @@ class PlatformAdminService:
             "recovery_codes_remaining": remaining,
         }
 
-    def start_mfa_setup(self, user_id: int, *, issuer: str = "AIPLAZA Platform Admin") -> dict:
+    def start_mfa_setup(self, user_id: int, *, issuer: str = "NYZRating Platform Admin") -> dict:
         user = self.repository.get_by_id(user_id)
         if user is None:
             raise ValueError("user_not_found")
@@ -242,7 +242,7 @@ class PlatformAdminService:
         if updated is None:
             raise ValueError("user_not_found")
         account_name = (user.email or "").strip() or f"platform-admin-{user_id}"
-        issuer_value = quote((issuer or "AIPLAZA Platform Admin").strip(), safe="")
+        issuer_value = quote((issuer or "NYZRating Platform Admin").strip(), safe="")
         account_value = quote(account_name, safe="")
         otpauth_uri = (
             f"otpauth://totp/{issuer_value}:{account_value}"
@@ -370,7 +370,7 @@ class PlatformAdminService:
         alert_recipient = str(getattr(settings, "platform_admin_login_alert_email", "") or "").strip()
         if alert_recipient and self.email_service:
             try:
-                subject = "AIPLAZA platform admin login alert"
+                subject = "NYZRating platform admin login alert"
                 body = (
                     "Sikeres platform-admin bejelentkezés történt.\n\n"
                     f"Email: {updated.email}\n"

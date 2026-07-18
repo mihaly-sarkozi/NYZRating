@@ -13,7 +13,7 @@ def build_idempotency_key(
     content_hash: str,
     pipeline_version: str = DEFAULT_IDEMPOTENCY_PIPELINE_VERSION,
 ) -> str:
-    """Ismétlésmentes kulcs: tudástár + pipeline verzió + tartalom lenyomat."""
+    """Ismétlésmentes kulcs: NYZRating + pipeline verzió + tartalom lenyomat."""
     kb_id = str(knowledge_base_id or "").strip()
     digest = str(content_hash or "").strip()
     version = str(pipeline_version or DEFAULT_IDEMPOTENCY_PIPELINE_VERSION).strip()

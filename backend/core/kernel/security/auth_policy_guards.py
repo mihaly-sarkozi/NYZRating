@@ -27,7 +27,7 @@ _MAX_INVITE_TTL_HOURS = 168  # 7 nap
 
 
 def _validate_jwt_issuer_audience(settings: object, env: str) -> None:
-    issuer = (getattr(settings, "jwt_issuer", "AIPLAZA") or "AIPLAZA").strip()
+    issuer = (getattr(settings, "jwt_issuer", "NYZRating") or "NYZRating").strip()
     audience = (getattr(settings, "jwt_audience", "") or "").strip()
 
     if is_production_env(env):

@@ -230,6 +230,6 @@ def demo_unsubscribe(
     allowlist_remove_by_user(tenant_slug, user.id)
     invalidate_user_cache(tenant_slug, user.id)
     return OperationStatusResponse(
-        message="Leiratkozás rögzítve. 7 napon belül töröljük az összes tudástárat.",
+        message="Leiratkozás rögzítve. 7 napon belül töröljük az összes NYZRatingat.",
         details={"deletion_due_days": result.get("deletion_due_days", 7)},
     )
