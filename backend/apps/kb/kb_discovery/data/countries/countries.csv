@@ -1,0 +1,223 @@
+canonical_name,alias,language,iso_alpha2,is_european
+Albania,Albania,en,AL,true
+Albania,Albánia,hu,AL,true
+Albania,Albania,es,AL,true
+Andorra,Andorra,en,AD,true
+Andorra,Andorra,hu,AD,true
+Andorra,Andorra,es,AD,true
+Armenia,Armenia,en,AM,true
+Armenia,Örményország,hu,AM,true
+Armenia,Armenia,es,AM,true
+Austria,Austria,en,AT,true
+Austria,Ausztria,hu,AT,true
+Austria,Austria,es,AT,true
+Azerbaijan,Azerbaijan,en,AZ,true
+Azerbaijan,Azerbajdzsán,hu,AZ,true
+Azerbaijan,Azerbaiyán,es,AZ,true
+Belarus,Belarus,en,BY,true
+Belarus,Fehéroroszország,hu,BY,true
+Belarus,Belorusszia,hu,BY,true
+Belarus,Bielorrusia,es,BY,true
+Belgium,Belgium,en,BE,true
+Belgium,Belgium,hu,BE,true
+Belgium,Bélgica,es,BE,true
+Bosnia and Herzegovina,Bosnia and Herzegovina,en,BA,true
+Bosnia and Herzegovina,Bosznia-Hercegovina,hu,BA,true
+Bosnia and Herzegovina,Bosznia,hu,BA,true
+Bosnia and Herzegovina,Bosnia y Herzegovina,es,BA,true
+Bulgaria,Bulgaria,en,BG,true
+Bulgaria,Bulgária,hu,BG,true
+Bulgaria,Bulgaria,es,BG,true
+Croatia,Croatia,en,HR,true
+Croatia,Horvátország,hu,HR,true
+Croatia,Croacia,es,HR,true
+Cyprus,Cyprus,en,CY,true
+Cyprus,Ciprus,hu,CY,true
+Cyprus,Chipre,es,CY,true
+Czechia,Czechia,en,CZ,true
+Czechia,Czech Republic,en,CZ,true
+Czechia,Csehország,hu,CZ,true
+Czechia,Cseh Köztársaság,hu,CZ,true
+Czechia,Chequia,es,CZ,true
+Czechia,República Checa,es,CZ,true
+Denmark,Denmark,en,DK,true
+Denmark,Dánia,hu,DK,true
+Denmark,Dinamarca,es,DK,true
+Estonia,Estonia,en,EE,true
+Estonia,Észtország,hu,EE,true
+Estonia,Estonia,es,EE,true
+Finland,Finland,en,FI,true
+Finland,Finnország,hu,FI,true
+Finland,Finlandia,es,FI,true
+France,France,en,FR,true
+France,Franciaország,hu,FR,true
+France,Francia,es,FR,true
+Georgia,Georgia,en,GE,true
+Georgia,Grúzia,hu,GE,true
+Georgia,Georgia,es,GE,true
+Germany,Germany,en,DE,true
+Germany,Németország,hu,DE,true
+Germany,Alemania,es,DE,true
+Greece,Greece,en,GR,true
+Greece,Görögország,hu,GR,true
+Greece,Grecia,es,GR,true
+Hungary,Hungary,en,HU,true
+Hungary,Magyarország,hu,HU,true
+Hungary,Magyar Köztársaság,hu,HU,true
+Hungary,Hungría,es,HU,true
+Iceland,Iceland,en,IS,true
+Iceland,Izland,hu,IS,true
+Iceland,Islandia,es,IS,true
+Ireland,Ireland,en,IE,true
+Ireland,Írország,hu,IE,true
+Ireland,Irlanda,es,IE,true
+Italy,Italy,en,IT,true
+Italy,Olaszország,hu,IT,true
+Italy,Italia,es,IT,true
+Kazakhstan,Kazakhstan,en,KZ,true
+Kazakhstan,Kazahsztán,hu,KZ,true
+Kazakhstan,Kazajistán,es,KZ,true
+Kosovo,Kosovo,en,XK,true
+Kosovo,Koszovó,hu,XK,true
+Kosovo,Kosovo,es,XK,true
+Latvia,Latvia,en,LV,true
+Latvia,Lettország,hu,LV,true
+Latvia,Letonia,es,LV,true
+Liechtenstein,Liechtenstein,en,LI,true
+Liechtenstein,Liechtenstein,hu,LI,true
+Liechtenstein,Liechtenstein,es,LI,true
+Lithuania,Lithuania,en,LT,true
+Lithuania,Litvánia,hu,LT,true
+Lithuania,Lituania,es,LT,true
+Luxembourg,Luxembourg,en,LU,true
+Luxembourg,Luxemburg,hu,LU,true
+Luxembourg,Luxemburgo,es,LU,true
+Malta,Malta,en,MT,true
+Malta,Málta,hu,MT,true
+Malta,Malta,es,MT,true
+Moldova,Moldova,en,MD,true
+Moldova,Moldova,hu,MD,true
+Moldova,Moldávia,hu,MD,true
+Moldova,Moldavia,es,MD,true
+Monaco,Monaco,en,MC,true
+Monaco,Monaco,hu,MC,true
+Monaco,Mónaco,es,MC,true
+Montenegro,Montenegro,en,ME,true
+Montenegro,Montenegró,hu,ME,true
+Montenegro,Montenegro,es,ME,true
+Netherlands,Netherlands,en,NL,true
+Netherlands,Holland,hu,NL,true
+Netherlands,Hollandia,hu,NL,true
+Netherlands,Países Bajos,es,NL,true
+Netherlands,Holanda,es,NL,true
+North Macedonia,North Macedonia,en,MK,true
+North Macedonia,Észak-Macedónia,hu,MK,true
+North Macedonia,Macedonia del Norte,es,MK,true
+Norway,Norway,en,NO,true
+Norway,Norvégia,hu,NO,true
+Norway,Noruega,es,NO,true
+Poland,Poland,en,PL,true
+Poland,Lengyelország,hu,PL,true
+Poland,Polonia,es,PL,true
+Portugal,Portugal,en,PT,true
+Portugal,Portugália,hu,PT,true
+Portugal,Portugal,es,PT,true
+Romania,Romania,en,RO,true
+Romania,Románia,hu,RO,true
+Romania,Rumania,es,RO,true
+Romania,Rumanía,es,RO,true
+Russia,Russia,en,RU,true
+Russia,Oroszország,hu,RU,true
+Russia,Rusia,es,RU,true
+San Marino,San Marino,en,SM,true
+San Marino,San Marino,hu,SM,true
+San Marino,San Marino,es,SM,true
+Serbia,Serbia,en,RS,true
+Serbia,Szerbia,hu,RS,true
+Serbia,Serbia,es,RS,true
+Slovakia,Slovakia,en,SK,true
+Slovakia,Szlovákia,hu,SK,true
+Slovakia,Eslovaquia,es,SK,true
+Slovenia,Slovenia,en,SI,true
+Slovenia,Szlovénia,hu,SI,true
+Slovenia,Eslovenia,es,SI,true
+Spain,Spain,en,ES,true
+Spain,Spanyolország,hu,ES,true
+Spain,España,es,ES,true
+Sweden,Sweden,en,SE,true
+Sweden,Svédország,hu,SE,true
+Sweden,Suecia,es,SE,true
+Switzerland,Switzerland,en,CH,true
+Switzerland,Svájc,hu,CH,true
+Switzerland,Suiza,es,CH,true
+Turkey,Turkey,en,TR,true
+Turkey,Törökország,hu,TR,true
+Turkey,Turquía,es,TR,true
+Ukraine,Ukraine,en,UA,true
+Ukraine,Ukrajna,hu,UA,true
+Ukraine,Ucrania,es,UA,true
+United Kingdom,United Kingdom,en,GB,true
+United Kingdom,Egyesült Királyság,hu,GB,true
+United Kingdom,Nagy-Britannia,hu,GB,true
+United Kingdom,Anglia,hu,GB,true
+United Kingdom,Reino Unido,es,GB,true
+United Kingdom,Inglaterra,es,GB,true
+Vatican City,Vatican City,en,VA,true
+Vatican City,Vatikán,hu,VA,true
+Vatican City,Ciudad del Vaticano,es,VA,true
+United States,United States,en,US,false
+United States,United States of America,en,US,false
+United States,Egyesült Államok,hu,US,false
+United States,Amerikai Egyesült Államok,hu,US,false
+United States,Estados Unidos,es,US,false
+Canada,Canada,en,CA,false
+Canada,Kanada,hu,CA,false
+Canada,Canadá,es,CA,false
+Mexico,Mexico,en,MX,false
+Mexico,Mexikó,hu,MX,false
+Mexico,México,es,MX,false
+Brazil,Brazil,en,BR,false
+Brazil,Brazília,hu,BR,false
+Brazil,Brasil,es,BR,false
+Argentina,Argentina,en,AR,false
+Argentina,Argentína,hu,AR,false
+Argentina,Argentina,es,AR,false
+Chile,Chile,en,CL,false
+Chile,Chile,hu,CL,false
+Chile,Chile,es,CL,false
+Colombia,Colombia,en,CO,false
+Colombia,Kolumbia,hu,CO,false
+Colombia,Colombia,es,CO,false
+Peru,Peru,en,PE,false
+Peru,Peru,hu,PE,false
+Peru,Perú,es,PE,false
+China,China,en,CN,false
+China,Kína,hu,CN,false
+China,China,es,CN,false
+Japan,Japan,en,JP,false
+Japan,Japán,hu,JP,false
+Japan,Japón,es,JP,false
+South Korea,South Korea,en,KR,false
+South Korea,Dél-Korea,hu,KR,false
+South Korea,Corea del Sur,es,KR,false
+India,India,en,IN,false
+India,India,hu,IN,false
+India,India,es,IN,false
+Indonesia,Indonesia,en,ID,false
+Indonesia,Indonézia,hu,ID,false
+Indonesia,Indonesia,es,ID,false
+Israel,Israel,en,IL,false
+Israel,Izrael,hu,IL,false
+Israel,Israel,es,IL,false
+Egypt,Egypt,en,EG,false
+Egypt,Egyiptom,hu,EG,false
+Egypt,Egipto,es,EG,false
+South Africa,South Africa,en,ZA,false
+South Africa,Dél-Afrika,hu,ZA,false
+South Africa,Sudáfrica,es,ZA,false
+Australia,Australia,en,AU,false
+Australia,Ausztrália,hu,AU,false
+Australia,Australia,es,AU,false
+New Zealand,New Zealand,en,NZ,false
+New Zealand,Új-Zéland,hu,NZ,false
+New Zealand,Nueva Zelanda,es,NZ,false

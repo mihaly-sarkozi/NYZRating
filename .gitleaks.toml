@@ -1,0 +1,13 @@
+title = "AIPLAZA Gitleaks Config"
+
+[allowlist]
+  description = "Tesztkörnyezeti dummy értékek"
+  regexes = [
+    "test-secret-with-enough-length-[0-9]+",
+    "test-openai-api-key",
+    "test-qdrant-key",
+  ]
+  paths = [
+    "backend/tests/",
+    ".github/workflows/ci.yml",
+  ]

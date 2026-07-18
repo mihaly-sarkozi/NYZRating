@@ -1,0 +1,29 @@
+-r requirements.in
+
+# Test runner és coverage
+pytest~=8.3.0
+pytest-asyncio
+pytest-cov
+trio
+
+# HTTP/API testek
+httpx~=0.28.1
+respx
+
+# Idő és external state mock
+freezegun
+fakeredis
+
+# Lint / format / typecheck
+ruff>=0.7.0
+mypy>=1.11.0
+
+# Offline névlista generálás
+names-dataset>=3.0.0
+
+# IDE remote debug
+debugpy~=1.8.0
+
+# Security scan (CI)
+pip-audit>=2.7.0
+bandit>=1.7.0

@@ -1,0 +1,278 @@
+name: backend-ci
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: "test"
+      JWT_SECRET: "test-secret-with-enough-length-0123456789012345678901234567890123456789"
+      JWT_ISSUER: "test"
+      JWT_AUDIENCE: "test"
+      DISABLE_CSRF: "1"
+      RATE_LIMIT_LOGIN_PER_MINUTE: "100"
+      QDRANT_URL: "http://localhost:6333"
+      QDRANT_API_KEY: "test-qdrant-key"
+      OPENAI_API_KEY: "test-openai-api-key"
+      DATABASE_URL: "sqlite+pysqlite:///:memory:"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e ".[test]"
+
+      - name: Compile check
+        working-directory: backend
+        run: python -m compileall .
+
+      - name: Lint
+        working-directory: backend
+        run: ruff check . --output-format=concise
+
+      - name: Unit tests
+        working-directory: backend
+        run: pytest tests/unit -v --tb=short
+
+      - name: No runtime DDL check
+        run: python scripts/check_no_runtime_ddl.py
+
+      - name: Import boundary check
+        run: python scripts/check_import_boundaries.py
+
+      - name: Package clean check
+        run: |
+          bash scripts/package_backend.sh /tmp/backend_clean.zip
+          unzip -l /tmp/backend_clean.zip > /tmp/backend_clean_zip_listing.txt
+          ! grep -E '(__MACOSX|\.DS_Store|/\._|__pycache__|\.pyc|\.pyo|\.git/|\.venv/|node_modules/)' /tmp/backend_clean_zip_listing.txt
+
+      - name: Typecheck
+        working-directory: backend
+        run: mypy
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: aiplaza_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: "test"
+      APP_NAME: "AIPLAZA Test"
+      APP_DESCRIPTION: "CI integration test"
+      APP_VERSION: "test"
+      API_HOST: "127.0.0.1"
+      API_PORT: "8000"
+      CORS_ORIGINS: "http://localhost:3000"
+      FRONTEND_BASE_URL: "http://localhost:3000"
+      TENANT_BASE_DOMAIN: "app.test"
+      INSTALL_HOST: "app.test"
+      SINGLE_TENANT_SLUG: "demo"
+      TRUSTED_HOSTS: "localhost,127.0.0.1,app.test"
+      DATABASE_POOL_PRE_PING: "false"
+      METRICS_ALLOWED_IPS: "127.0.0.1"
+      LOG_LEVEL: "INFO"
+      COOKIE_SECURE: "false"
+      CHAT_PROVIDER: "openai"
+      CHAT_MODEL: "gpt-4o-mini"
+      OLLAMA_URL: "http://localhost:11434"
+      OBJECT_STORAGE_ENDPOINT: "http://localhost:9000"
+      OBJECT_STORAGE_BUCKET: "aiplaza-test"
+      REDIS_URL: "redis://localhost:6379/0"
+      SMTP_HOST: "localhost"
+      SMTP_USER: "test"
+      SMTP_PASSWORD: "test"
+      SMTP_FROM_EMAIL: "noreply@example.test"
+      JWT_SECRET: "test-secret-with-enough-length-0123456789012345678901234567890123456789"
+      JWT_ISSUER: "test"
+      JWT_AUDIENCE: "test"
+      DISABLE_CSRF: "1"
+      RATE_LIMIT_LOGIN_PER_MINUTE: "100"
+      QDRANT_URL: "http://localhost:6333"
+      QDRANT_API_KEY: "test-qdrant-key"
+      OPENAI_API_KEY: "test-openai-api-key"
+      DATABASE_URL: "postgresql+psycopg2://postgres:testpassword@localhost:5432/aiplaza_test"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements-dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e ".[test]"
+
+      - name: Wait for Postgres
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
+
+      - name: Init DB schema
+        working-directory: backend
+        run: python scripts/init_db.py
+
+      - name: Tenant isolation integration tests
+        working-directory: backend
+        run: pytest tests/integration/test_tenant_schema_isolation.py -v --tb=short
+
+      - name: Auth integration tests
+        working-directory: backend
+        run: pytest tests/integration/test_auth_login.py -v --tb=short
+
+  prod-config-smoke:
+    runs-on: ubuntu-latest
+    needs: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -e ".[test]"
+
+      - name: Production config validator smoke test
+        run: python scripts/check_prod_config_validators.py
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install backend scan tools
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pip-audit bandit
+
+      - name: pip-audit (ismert CVE-k)
+        working-directory: backend
+        run: |
+          pip-audit -r requirements.txt --ignore-vuln PYSEC-2022-42969
+
+      - name: bandit (HIGH/HIGH)
+        working-directory: backend
+        run: |
+          bandit -r . \
+            --exclude ./tests,./scripts \
+            --severity-level high \
+            --confidence-level high
+
+      - name: npm audit (frontend)
+        working-directory: frontend
+        run: |
+          npm install --package-lock-only
+          npm audit --audit-level=high
+
+      - name: Gitleaks (secret-scan)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache pnpm
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
+
+      - name: Type check
+        working-directory: frontend
+        run: pnpm exec tsc -b
+
+      - name: Unit tests
+        working-directory: frontend
+        run: pnpm test
+
+      - name: Build
+        working-directory: frontend
+        run: pnpm build
