@@ -1,4 +1,3 @@
-import Button from "../../../components/ui/Button";
 import type { BillingCatalogEntry } from "../../billing/hooks/useBilling";
 
 type PlanChangePending = { planCode: string; billingPeriod: string };
@@ -8,7 +7,6 @@ type PackageStatusModalsProps = {
   planChangePending: PlanChangePending | null;
   planChangeSuccess: PlanChangeSuccess | null;
   resourceBlockMessage: string | null;
-  showAuthenticatorRequiredModal: boolean;
   pendingTargetPlan: BillingCatalogEntry | null;
   pendingBilledPhrase: string;
   pendingIsDowngrade: boolean;
@@ -18,15 +16,12 @@ type PackageStatusModalsProps = {
   onConfirmPlanChange: () => void;
   onCloseSuccess: () => void;
   onCloseResourceBlock: () => void;
-  onCloseAuthenticatorRequired: () => void;
-  onOpenSettings: () => void;
 };
 
 export default function PackageStatusModals({
   planChangePending,
   planChangeSuccess,
   resourceBlockMessage,
-  showAuthenticatorRequiredModal,
   pendingTargetPlan,
   pendingBilledPhrase,
   pendingIsDowngrade,
@@ -36,8 +31,6 @@ export default function PackageStatusModals({
   onConfirmPlanChange,
   onCloseSuccess,
   onCloseResourceBlock,
-  onCloseAuthenticatorRequired,
-  onOpenSettings,
 }: PackageStatusModalsProps) {
   return (
     <>
@@ -116,30 +109,6 @@ export default function PackageStatusModals({
           }
         >
           <div className="whitespace-pre-wrap">{resourceBlockMessage}</div>
-        </BasicDialog>
-      ) : null}
-
-      {showAuthenticatorRequiredModal ? (
-        <BasicDialog
-          zIndex="z-[87]"
-          titleId="packages-authenticator-required-title"
-          title="Authenticator szükséges az előfizetéshez"
-          onClose={onCloseAuthenticatorRequired}
-          footer={
-            <>
-              <Button type="button" variant="secondary" onClick={onCloseAuthenticatorRequired}>
-                Később
-              </Button>
-              <Button type="button" onClick={onOpenSettings}>
-                Authenticator beállítása
-              </Button>
-            </>
-          }
-        >
-          <p>
-            A próbaidőszak alatt a kétfaktoros hitelesítés opcionális, de előfizetés indításához kötelező a Google Authenticator
-            aktiválása.
-          </p>
         </BasicDialog>
       ) : null}
     </>

@@ -20,7 +20,7 @@ const EMPTY_FORM: BillingFormState = {
   postalCode: "",
   city: "",
   region: "",
-  country: "",
+  country: "HU",
 };
 
 export function useBillingForm(t: (key: string) => string) {

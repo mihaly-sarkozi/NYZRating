@@ -12,15 +12,15 @@ Can be unit-tested with mock repos without any database or framework.
 """
 from __future__ import annotations
 
-from core.modules.tenant.slug.policy import candidate_demo_slug, demo_slug_base
+from core.modules.tenant.slug.policy import candidate_demo_slug, demo_slug_base, slug_matches_demo_base
 
 
 class DemoSlugReserver:
     """Reserve a unique demo slug for a session, idempotently.
 
-    If the session already has a reserved slug it is returned immediately
-    (idempotent re-entry).  Otherwise a new unique slug is found and locked
-    in the session table.
+    If the session already has a reserved slug for the same company-name base it
+    is returned immediately. If the requested company name changed, the old
+    reservation is dropped and a new slug is reserved.
     """
 
     def __init__(self, *, tenant_repo, demo_signup_repository) -> None:
@@ -29,11 +29,14 @@ class DemoSlugReserver:
 
     def reserve(self, session_id: str, requested_name: str, email: str) -> str:
         """Return an available slug for *session_id*, reserving it if needed."""
+        base = demo_slug_base(requested_name)
         existing = self._demo_signup_repo.get_reserved_slug(session_id)
         if existing:
-            return existing
+            if slug_matches_demo_base(existing, base):
+                return existing
+            # A cégnév megváltozott: régi foglalás elengedése.
+            self._demo_signup_repo.delete_session(session_id)
 
-        base = demo_slug_base(requested_name)
         for suffix in range(1, 10_000):
             candidate = candidate_demo_slug(base, suffix)
             if self._tenant_repo.get_by_slug(candidate) is not None:
@@ -47,8 +50,10 @@ class DemoSlugReserver:
                 return candidate
             # Race condition: someone else reserved this slug; try from DB.
             existing = self._demo_signup_repo.get_reserved_slug(session_id)
-            if existing:
+            if existing and slug_matches_demo_base(existing, base):
                 return existing
+            if existing:
+                self._demo_signup_repo.delete_session(session_id)
         raise ValueError("slug_generation_failed")
 
 

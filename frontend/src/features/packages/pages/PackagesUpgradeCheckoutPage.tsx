@@ -14,11 +14,18 @@ import Alert from "../../../components/ui/Alert";
 import Button from "../../../components/ui/Button";
 import PageHeader from "../../../components/ui/PageHeader";
 import { patchBillingSettings } from "../../../api/services/settingsService";
-import { EU_COUNTRIES, isValidEuVatId, isValidPostalCode, normalizeEuVatId, normalizePostalCode } from "./checkoutOptions";
-import { checkoutCustomerTypeFromSettings, hasSavedCheckoutBillingDetails, type BillingCustomerType } from "./checkoutBillingDetails";
+import {
+  FIXED_BILLING_COUNTRY,
+  isValidHuTaxId,
+  isValidPostalCode,
+  normalizeHuTaxId,
+  normalizePostalCode,
+} from "./checkoutOptions";
+import { hasSavedCheckoutBillingDetails } from "./checkoutBillingDetails";
 import { SavedBillingDetailsSummary } from "./SavedBillingDetailsSummary";
 import { useBillingSettings, useLocaleSettings } from "../../settings/hooks/useSettings";
 import { formatDateOnly } from "../../../utils/dateTimeFormatting";
+import { formatEuroLocaleFromCents, todayDateIso } from "../components/packageUtils";
 
 const VALID_PERIODS = ["monthly", "quarterly", "yearly"] as const;
 type BillingPeriod = (typeof VALID_PERIODS)[number];
@@ -27,17 +34,8 @@ function isFreePlan(plan: BillingCatalogEntry): boolean {
   return plan.code === "free" || plan.price_cents === 0;
 }
 
-function localeTag(locale: string): string {
-  if (locale === "es") return "es-ES";
-  if (locale === "en") return "en-GB";
-  return "hu-HU";
-}
-
 function formatEuroFromCents(cents: number, loc: string): string {
-  const value = Number(cents) / 100;
-  const tag = localeTag(loc);
-  const whole = Math.round(value * 100) % 100 === 0;
-  return value.toLocaleString(tag, whole ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatEuroLocaleFromCents(cents, loc);
 }
 
 function percentValue(part: number, total: number): number {
@@ -51,7 +49,7 @@ export default function PackagesUpgradeCheckoutPage() {
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { data: billingOverview, isLoading: overviewLoading } = useBillingOverview();
-  const { data: settings } = useBillingSettings();
+  const { data: settings, isLoading: settingsLoading } = useBillingSettings();
   const { data: localeSettings } = useLocaleSettings();
   const completeUpgradeMutation = useCompleteUpgradeMutation();
 
@@ -62,13 +60,10 @@ export default function PackagesUpgradeCheckoutPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [customerType, setCustomerType] = useState<BillingCustomerType>("company");
   const [company, setCompany] = useState("");
   const [addressLine, setAddressLine] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
-  const [country, setCountry] = useState("");
   const [taxId, setTaxId] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [billingDetailsEditing, setBillingDetailsEditing] = useState(true);
@@ -103,37 +98,37 @@ export default function PackagesUpgradeCheckoutPage() {
   const billingDetailsLocked = hasSavedBillingDetails && !billingDetailsEditing;
 
   useEffect(() => {
-    if (!settings || billingDetailsPrefilled) return;
-    const savedCustomerType = checkoutCustomerTypeFromSettings(settings);
-    setCustomerType(savedCustomerType);
-    setCompany(savedCustomerType === "company" ? settings.billing_company_name ?? "" : "");
-    setFullName(savedCustomerType === "private" ? settings.billing_full_name ?? "" : user?.name ?? "");
+    if (settingsLoading || billingDetailsPrefilled) return;
+    if (!settings) {
+      setBillingDetailsPrefilled(true);
+      return;
+    }
+    setCompany(settings.billing_company_name ?? "");
     setAddressLine(settings.billing_address_line ?? "");
     setPostalCode(normalizePostalCode(settings.billing_postal_code ?? ""));
     setCity(settings.billing_city ?? "");
-    setCountry(settings.billing_country ?? "");
-    setTaxId(normalizeEuVatId(settings.billing_tax_id ?? ""));
+    setTaxId(normalizeHuTaxId(settings.billing_tax_id ?? ""));
     setBillingDetailsEditing(!hasSavedCheckoutBillingDetails(settings));
     setBillingDetailsPrefilled(true);
-  }, [billingDetailsPrefilled, settings, user?.name]);
+  }, [billingDetailsPrefilled, settings, settingsLoading]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!plan || !acceptTerms || !preview || currentPlanCode === "free") return;
-    if (!isValidPostalCode(postalCode) || (customerType === "company" && !isValidEuVatId(country, taxId))) return;
+    if (!isValidPostalCode(postalCode) || !isValidHuTaxId(taxId)) return;
     const { usedGb, usedKbCount } = readBillingResourceUsage(billingOverview?.usage as Record<string, unknown> | undefined);
     const block = planResourceBlock(plan, usedGb, usedKbCount, false);
     if (block.blocked) return;
     try {
       await patchBillingSettings({
-        billing_customer_type: customerType,
-        billing_full_name: fullName,
-        billing_company_name: customerType === "company" ? company : "",
-        billing_tax_id: customerType === "company" ? normalizeEuVatId(taxId) : "",
+        billing_customer_type: "company",
+        billing_full_name: "",
+        billing_company_name: company,
+        billing_tax_id: normalizeHuTaxId(taxId),
         billing_address_line: addressLine,
         billing_postal_code: postalCode,
         billing_city: city,
-        billing_country: country,
+        billing_country: FIXED_BILLING_COUNTRY,
       });
       const res = await completeUpgradeMutation.mutateAsync({ plan_code: plan.code, billing_period: billingPeriod });
       const amountLabel = formatEuroFromCents(res.total_charge_cents, locale);
@@ -153,8 +148,9 @@ export default function PackagesUpgradeCheckoutPage() {
                 })
               )
           : t("packages.upgradeCheckoutSuccessZero");
-      navigate("/admin/pricing", {
-        state: { upgradeCheckoutComplete: true, message, status: res.status },
+      navigate("/admin/forgalom", {
+        state: { upgradeCheckoutComplete: true, message },
+        replace: true,
       });
     } catch {
       /* axios error surfaced via mutation */
@@ -171,7 +167,7 @@ export default function PackagesUpgradeCheckoutPage() {
     );
   }
 
-  if (overviewLoading) {
+  if (overviewLoading || settingsLoading || !billingDetailsPrefilled) {
     return (
       <div className="p-6 w-full min-h-full bg-[var(--color-background)] text-[var(--color-foreground)]">
         <div>{t("common.loading")}</div>
@@ -209,16 +205,14 @@ export default function PackagesUpgradeCheckoutPage() {
     );
   }
 
-  const startIso = billingOverview?.current_period_start_iso ?? "";
-  const endIso = billingOverview?.current_period_end_iso ?? "";
-  const fromLabel = startIso
-    ? formatDateOnly(startIso, {
-        locale,
-        timezone: localeSettings?.timezone,
-        dateFormat: localeSettings?.date_format,
-        dateStyle: localeSettings?.date_format ? undefined : "long",
-      })
-    : "—";
+  const startIso = todayDateIso();
+  const endIso = preview?.paid_until_iso ?? "";
+  const fromLabel = formatDateOnly(startIso, {
+    locale,
+    timezone: localeSettings?.timezone,
+    dateFormat: localeSettings?.date_format,
+    dateStyle: localeSettings?.date_format ? undefined : "long",
+  });
   const toLabel = endIso
     ? formatDateOnly(endIso, {
         locale,
@@ -237,12 +231,11 @@ export default function PackagesUpgradeCheckoutPage() {
     !acceptTerms ||
     completeUpgradeMutation.isPending ||
     (!billingDetailsLocked &&
-      (!fullName.trim() ||
-        !country.trim() ||
+      (!company.trim() ||
+        !isValidHuTaxId(taxId) ||
         !isValidPostalCode(postalCode) ||
         !city.trim() ||
-        !addressLine.trim() ||
-        (customerType === "company" && (!company.trim() || !isValidEuVatId(country, taxId))))) ||
+        !addressLine.trim())) ||
     !cardNumber.trim() ||
     !cardExpiry.trim() ||
     !cardCvc.trim() ||
@@ -251,11 +244,13 @@ export default function PackagesUpgradeCheckoutPage() {
     !preview ||
     Boolean(previewErrMsg);
 
+  const remainingMonths = preview?.remaining_prepaid_months ?? preview?.remaining_period_days ?? 0;
+  const totalMonths = preview?.total_prepaid_months ?? preview?.total_period_days ?? 0;
   const prorationLine =
     preview != null
       ? t("packages.upgradeCheckoutProrationLine")
-          .replace("{{remaining}}", String(preview.remaining_period_days))
-          .replace("{{total}}", String(preview.total_period_days))
+          .replace("{{remaining}}", String(remainingMonths))
+          .replace("{{total}}", String(totalMonths))
           .replace("{{amount}}", formatEuroFromCents(preview.old_remaining_credit_cents, locale))
       : null;
   const paidUntilLabel =
@@ -267,8 +262,8 @@ export default function PackagesUpgradeCheckoutPage() {
           dateStyle: localeSettings?.date_format ? undefined : "long",
         })
       : "—";
-  const progressPercent = preview != null ? percentValue(preview.remaining_period_days, preview.total_period_days) : 0;
-  const payNowLabel = preview != null ? `${formatEuroFromCents(preview.total_charge_cents, locale)} €` : "—";
+  const progressPercent = preview != null ? percentValue(remainingMonths, totalMonths) : 0;
+  const payNowLabel = preview != null ? `${formatEuroFromCents(preview.total_charge_cents, locale)} Ft` : "—";
 
   return (
     <div className="app-page">
@@ -325,7 +320,7 @@ export default function PackagesUpgradeCheckoutPage() {
             </div>
             <div className="mt-2 flex justify-between text-sm text-[var(--color-muted)]">
               <span>
-                {preview != null ? `${preview.remaining_period_days} / ${preview.total_period_days} ${t("packages.upgradeCheckoutDaysRemaining")}` : "—"}
+                {preview != null ? `${remainingMonths} / ${totalMonths} ${t("packages.upgradeCheckoutDaysRemaining")}` : "—"}
               </span>
               <span>{Math.round(progressPercent)}%</span>
             </div>
@@ -337,14 +332,16 @@ export default function PackagesUpgradeCheckoutPage() {
             {preview ? (
               <div className="mt-3 space-y-1 text-sm opacity-70">
                 <p>
-                  {t("packages.upgradeCheckoutNextPeriodShort")}: + {formatEuroFromCents(preview.next_period_charge_cents, locale)} €
+                  {t("packages.upgradeCheckoutNextPeriodShort")}: + {formatEuroFromCents(preview.next_period_charge_cents, locale)} Ft
                 </p>
                 <p>
-                  {t("packages.upgradeCheckoutTrainingInitialShort")}: + {formatEuroFromCents(preview.training_initial_fee_cents, locale)} €
+                  {t("packages.upgradeCheckoutProrationShort")}: - {formatEuroFromCents(preview.old_remaining_credit_cents, locale)} Ft
                 </p>
-                <p>
-                  {t("packages.upgradeCheckoutProrationShort")}: - {formatEuroFromCents(preview.old_remaining_credit_cents, locale)} €
-                </p>
+                {(preview.sms_carryover_from_old_plan ?? 0) > 0 ? (
+                  <p>
+                    {t("packages.upgradeCheckoutSmsCarryoverShort")}: + {preview.sms_carryover_from_old_plan}
+                  </p>
+                ) : null}
                 <p className="mt-2 border-t border-[var(--color-on-primary)]/20 pt-2 font-semibold opacity-100">
                   {t("packages.upgradeCheckoutPayNowLabel")}: {payNowLabel}
                 </p>
@@ -362,70 +359,14 @@ export default function PackagesUpgradeCheckoutPage() {
               <SavedBillingDetailsSummary settings={settings} onEdit={() => setBillingDetailsEditing(true)} />
             ) : (
             <div className="space-y-3 pt-2">
-              <fieldset className="rounded-xl border border-[var(--color-border)] p-3">
-                <legend className="px-1 text-xs font-medium text-[var(--color-muted)]">{t("packages.checkoutCustomerType")}</legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="billing_customer_type"
-                      checked={customerType === "company"}
-                      onChange={() => setCustomerType("company")}
-                      className="mr-1 shrink-0"
-                      style={{ width: "auto" }}
-                    />
-                    <span className="relative -top-[3px]">{t("packages.checkoutCustomerTypeCompany")}</span>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="billing_customer_type"
-                      checked={customerType === "private"}
-                      onChange={() => setCustomerType("private")}
-                      className="mr-1 shrink-0"
-                      style={{ width: "auto" }}
-                    />
-                    <span className="relative -top-[3px]">{t("packages.checkoutCustomerTypePrivate")}</span>
-                  </label>
-                </div>
-              </fieldset>
               <label className="block">
-                <span className="text-sm text-[var(--color-muted)]">
-                  {customerType === "company" ? t("packages.checkoutRepresentativeName") : t("packages.checkoutFullName")}
-                </span>
+                <span className="text-sm text-[var(--color-muted)]">{t("packages.checkoutCompanyRequired")}</span>
                 <input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
                   className="mt-1"
-                  autoComplete="name"
+                  autoComplete="organization"
                 />
-              </label>
-              {customerType === "company" ? (
-                <label className="block">
-                  <span className="text-sm text-[var(--color-muted)]">{t("packages.checkoutCompanyRequired")}</span>
-                  <input
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    className="mt-1"
-                    autoComplete="organization"
-                  />
-                </label>
-              ) : null}
-              <label className="block">
-                <span className="text-sm text-[var(--color-muted)]">{t("packages.checkoutCountry")}</span>
-                <select
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="mt-1"
-                  autoComplete="country-name"
-                >
-                  <option value="">{t("packages.checkoutCountrySelectPlaceholder")}</option>
-                  {EU_COUNTRIES.map((item) => (
-                    <option key={item.code} value={item.code} disabled={item.disabled}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <label className="block">
@@ -459,17 +400,16 @@ export default function PackagesUpgradeCheckoutPage() {
                   autoComplete="street-address"
                 />
               </label>
-              {customerType === "company" ? (
-                <label className="block">
-                  <span className="text-sm text-[var(--color-muted)]">{t("packages.checkoutTaxIdRequired")}</span>
-                  <input
-                    value={taxId}
-                    onChange={(e) => setTaxId(normalizeEuVatId(e.target.value))}
-                    className="mt-1"
-                  />
-                  <span className="mt-1 block text-[11px] text-[var(--color-muted)]">{t("packages.checkoutTaxIdFormatHint")}</span>
-                </label>
-              ) : null}
+              <label className="block">
+                <span className="text-sm text-[var(--color-muted)]">{t("packages.checkoutTaxIdRequired")}</span>
+                <input
+                  value={taxId}
+                  onChange={(e) => setTaxId(normalizeHuTaxId(e.target.value))}
+                  className="mt-1"
+                  placeholder="12345678-1-42"
+                />
+                <span className="mt-1 block text-[11px] text-[var(--color-muted)]">{t("packages.checkoutTaxIdFormatHint")}</span>
+              </label>
             </div>
             )}
 

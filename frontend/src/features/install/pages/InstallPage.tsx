@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { demoSignup, type DemoSignupResponse } from "../api/demoApi";
+import { installSignup, type InstallSignupResponse } from "../api/installApi";
 import { useTranslation } from "../../../i18n";
 
-export const DEMO_SESSION_STORAGE_KEY = "brainbankcenter_demo_session_id";
+export const INSTALL_SESSION_STORAGE_KEY = "nyzrating_install_session_id";
 
 function generateSessionId(): string {
   const cryptoApi = typeof window !== "undefined" ? window.crypto : undefined;
@@ -12,42 +12,45 @@ function generateSessionId(): string {
   }
 
   const randomPart = Math.random().toString(36).slice(2);
-  return `demo-${Date.now()}-${randomPart}`;
+  return `install-${Date.now()}-${randomPart}`;
 }
 
-function createFreshDemoSessionId(): string {
+function createFreshInstallSessionId(): string {
   const generated = generateSessionId();
-  sessionStorage.setItem(DEMO_SESSION_STORAGE_KEY, generated);
+  sessionStorage.setItem(INSTALL_SESSION_STORAGE_KEY, generated);
   return generated;
 }
 
-export default function DemoPage() {
+export default function InstallPage() {
   const { locale } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [existingDemo, setExistingDemo] = useState<{ email: string } | null>(null);
+  const [existingInstall, setExistingInstall] = useState<{ email: string } | null>(null);
 
-  const demoSessionId = useMemo(() => createFreshDemoSessionId(), []);
-  const canSubmit = Boolean(email.trim() && name.trim());
+  const canSubmit = Boolean(email.trim() && companyName.trim());
 
-  const submitDemo = async (resendExistingAccess: boolean): Promise<DemoSignupResponse> => {
-    const res = await demoSignup({
+  const submitInstall = async (resendExistingAccess: boolean): Promise<InstallSignupResponse> => {
+    const company = companyName.trim();
+    // Minden kísérletnél friss session, hogy a slug a aktuális cégnévből képződjön.
+    const sessionId = createFreshInstallSessionId();
+    const res = await installSignup({
       email: email.trim(),
-      name: name.trim(),
+      name: company,
+      company_name: company,
       locale,
       resend_existing_access: resendExistingAccess,
-      kb_name: name.trim(),
+      kb_name: company,
       plan_code: "free",
       billing_period: "monthly",
-      demo_session_id: demoSessionId,
+      demo_session_id: sessionId,
     });
     const params = new URLSearchParams();
     params.set("email", email.trim());
     if (resendExistingAccess) params.set("resent", "1");
-    navigate(`/demo-email-sent?${params.toString()}`, { replace: true });
+    navigate(`/install-email-sent?${params.toString()}`, { replace: true });
     return res;
   };
 
@@ -55,10 +58,10 @@ export default function DemoPage() {
     e.preventDefault();
     if (submitting || !canSubmit) return;
     setSubmitError("");
-    setExistingDemo(null);
+    setExistingInstall(null);
     setSubmitting(true);
     try {
-      await submitDemo(false);
+      await submitInstall(false);
     } catch (err: unknown) {
       const response =
         err && typeof err === "object" && "response" in err
@@ -70,16 +73,16 @@ export default function DemoPage() {
       const reason = typeof detail === "object" && detail ? detail.reason : undefined;
       const message = typeof detail === "object" && detail ? detail.message : detail;
       const normalizedMessage = (typeof message === "string" ? message : "").toLowerCase();
-      const isExistingDemoLike =
+      const isExistingInstallLike =
         reason === "demo_exists" ||
         response?.status === 409 ||
         normalizedMessage.includes("already") ||
         normalizedMessage.includes("már") ||
         normalizedMessage.includes("használatban");
-      if (isExistingDemoLike) {
+      if (isExistingInstallLike) {
         try {
-          await submitDemo(true);
-          setExistingDemo(null);
+          await submitInstall(true);
+          setExistingInstall(null);
           setSubmitError("");
         } catch (resendErr: unknown) {
           const resendData =
@@ -104,8 +107,8 @@ export default function DemoPage() {
     setSubmitError("");
     setSubmitting(true);
     try {
-      await submitDemo(true);
-      setExistingDemo(null);
+      await submitInstall(true);
+      setExistingInstall(null);
     } catch (err: unknown) {
       const responseData =
         err && typeof err === "object" && "response" in err
@@ -129,24 +132,25 @@ export default function DemoPage() {
       </header>
 
       <main className="flex-1 px-4 py-8 max-w-lg mx-auto w-full">
-        <h1 className="text-3xl font-bold mb-3">Próbáld ki a saját anyagaiddal</h1>
+        <h1 className="text-3xl font-bold mb-3">Szerezzen több Google-értékelést automatikusan</h1>
         <p className="text-base text-[var(--color-muted-foreground)] mb-2">
-          Tölts fel néhány dokumentumot, és tegyél fel valós kérdéseket.
+          Állítsa be vállalkozását, és küldjön személyre szabott SMS-t ügyfeleinek a Google értékelési oldalára.
         </p>
         <p className="text-base text-[var(--color-muted-foreground)] mb-8">
-          Megmutatjuk, hogyan működik a NYZRating a saját tartalmaiddal.
+          Az ingyenes kipróbálással megmutatjuk, hogyan gyűjt több őszinte értékelést a NYZ Rating.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Hogy szólíthatunk?</label>
+            <label className="block text-sm font-medium mb-1">Cégnév</label>
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
               className="w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-3"
               required
-              placeholder="Kovács Anna"
+              placeholder="Példa Kft."
+              autoComplete="organization"
             />
           </div>
           <div>
@@ -189,25 +193,25 @@ export default function DemoPage() {
         </form>
       </main>
 
-      {existingDemo && (
+      {existingInstall && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="demo-exists-title"
+          aria-labelledby="install-exists-title"
           onClick={() => {
-            if (!submitting) setExistingDemo(null);
+            if (!submitting) setExistingInstall(null);
           }}
         >
           <div
             className="relative w-full max-w-md rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-6 shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="demo-exists-title" className="text-lg font-semibold text-[var(--color-foreground)] mb-3">
+            <h2 id="install-exists-title" className="text-lg font-semibold text-[var(--color-foreground)] mb-3">
               Figyelem
             </h2>
             <p className="text-sm text-[var(--color-foreground)] mb-2">
-              Ezzel az email címmel már hoztál létre demo oldalt.
+              Ezzel az email címmel már hoztál létre telepítést.
             </p>
             <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
               A jelszóbeállító linket elküldtük emailben, de ha szeretnél újat, elküldjük ismét emailben.
@@ -218,7 +222,7 @@ export default function DemoPage() {
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                onClick={() => setExistingDemo(null)}
+                onClick={() => setExistingInstall(null)}
                 disabled={submitting}
                 className="inline-flex items-center justify-center rounded border border-[var(--color-border)] px-4 py-2 text-[var(--color-foreground)] disabled:opacity-50 order-2 sm:order-1"
               >

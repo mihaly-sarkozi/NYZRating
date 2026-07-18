@@ -13,7 +13,7 @@ from core.kernel.db.model_bases import PublicBase
 from shared.utils.clock import utc_now
 
 
-DEFAULT_CURRENCY = "EUR"
+DEFAULT_CURRENCY = "HUF"
 
 
 def _utcnow() -> datetime:
@@ -168,4 +168,5 @@ class BillingDebugStateORM(PublicBase):
 
     id = Column(Integer, primary_key=True)
     simulated_date = Column(SQLADate, nullable=True)
+    payment_simulation_outcome = Column(String(16), nullable=False, default="success")
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow, server_default=func.now())

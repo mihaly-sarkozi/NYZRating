@@ -5,42 +5,24 @@ import { useAuthStore } from "../../../store/authStore";
 import { useBillingOverview, usePurchaseAddonMutation, type BillingCatalogEntry } from "../../billing/hooks/useBilling";
 import { isAddonCheckoutCode, type AddonCheckoutCode } from "../addonCheckoutAllowed";
 import { patchBillingSettings } from "../../../api/services/settingsService";
-import { EU_COUNTRIES, isValidEuVatId, isValidPostalCode, normalizeEuVatId, normalizePostalCode } from "./checkoutOptions";
-import { checkoutCustomerTypeFromSettings, hasSavedCheckoutBillingDetails, type BillingCustomerType } from "./checkoutBillingDetails";
+import {
+  FIXED_BILLING_COUNTRY,
+  isValidHuTaxId,
+  isValidPostalCode,
+  normalizeHuTaxId,
+  normalizePostalCode,
+} from "./checkoutOptions";
+import { hasSavedCheckoutBillingDetails } from "./checkoutBillingDetails";
 import { SavedBillingDetailsSummary } from "./SavedBillingDetailsSummary";
 import { useBillingSettings } from "../../settings/hooks/useSettings";
+import { formatEuroLocaleFromCents, includedNumber } from "../components/packageUtils";
 
-function formatEuroLocaleFromCents(cents: number, locale: string): string {
-  const value = Number(cents) / 100;
-  const tag = locale === "es" ? "es-ES" : locale === "en" ? "en-GB" : "hu-HU";
-  const whole = Math.round(value * 100) % 100 === 0;
-  return value.toLocaleString(tag, whole ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 1, maximumFractionDigits: 2 });
-}
-
-function formatNumber(value: number, locale: string): string {
-  const tag = locale === "es" ? "es-ES" : locale === "en" ? "en-GB" : "hu-HU";
-  return new Intl.NumberFormat(tag).format(value);
-}
-
-function includedNumber(entry: BillingCatalogEntry, key: string, fallback: number): number {
-  const value = entry.included?.[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function addonCheckoutName(entry: BillingCatalogEntry, locale: string, t: (key: string) => string): string {
+function addonCheckoutName(entry: BillingCatalogEntry, t: (key: string) => string): string {
   switch (entry.code) {
-    case "training_extra_500k":
-      return t("packages.expandTrainingTitle").replace(
-        "{{chars}}",
-        formatNumber(includedNumber(entry, "training_chars", 1000000), locale)
-      );
-    case "extra_storage_gb":
-      return t("packages.expandStorageTitle").replace("{{gb}}", String(includedNumber(entry, "storage_gb", 5)));
     case "question_pack_100":
-    case "question_pack_500":
       return t("packages.expandQuestionsTitle").replace(
         "{{count}}",
-        String(includedNumber(entry, "questions", entry.code === "question_pack_500" ? 500 : 100))
+        String(includedNumber(entry, "questions", 100))
       );
     default:
       return entry.name;
@@ -56,7 +38,7 @@ export default function PackagesAddonCheckoutPage() {
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { data: billingOverview, isLoading } = useBillingOverview();
-  const { data: settings } = useBillingSettings();
+  const { data: settings, isLoading: settingsLoading } = useBillingSettings();
   const purchaseAddonMutation = usePurchaseAddonMutation();
 
   const addonCode = (searchParams.get("addon") ?? "").trim().toLowerCase();
@@ -65,13 +47,10 @@ export default function PackagesAddonCheckoutPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [customerType, setCustomerType] = useState<BillingCustomerType>("company");
   const [company, setCompany] = useState("");
   const [addressLine, setAddressLine] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
-  const [country, setCountry] = useState("");
   const [taxId, setTaxId] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [billingDetailsEditing, setBillingDetailsEditing] = useState(true);
@@ -113,40 +92,41 @@ export default function PackagesAddonCheckoutPage() {
   const billingDetailsLocked = hasSavedBillingDetails && !billingDetailsEditing;
 
   useEffect(() => {
-    if (!settings || billingDetailsPrefilled) return;
-    const savedCustomerType = checkoutCustomerTypeFromSettings(settings);
-    setCustomerType(savedCustomerType);
-    setCompany(savedCustomerType === "company" ? settings.billing_company_name ?? "" : "");
-    setFullName(savedCustomerType === "private" ? settings.billing_full_name ?? "" : user?.name ?? "");
+    if (settingsLoading || billingDetailsPrefilled) return;
+    if (!settings) {
+      setBillingDetailsPrefilled(true);
+      return;
+    }
+    setCompany(settings.billing_company_name ?? "");
     setAddressLine(settings.billing_address_line ?? "");
     setPostalCode(normalizePostalCode(settings.billing_postal_code ?? ""));
     setCity(settings.billing_city ?? "");
-    setCountry(settings.billing_country ?? "");
-    setTaxId(normalizeEuVatId(settings.billing_tax_id ?? ""));
+    setTaxId(normalizeHuTaxId(settings.billing_tax_id ?? ""));
     setBillingDetailsEditing(!hasSavedCheckoutBillingDetails(settings));
     setBillingDetailsPrefilled(true);
-  }, [billingDetailsPrefilled, settings, user?.name]);
+  }, [billingDetailsPrefilled, settings, settingsLoading]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!checkoutIsValid || isFreeAddonBlocked || !acceptTerms) return;
-    if (!isValidPostalCode(postalCode) || (customerType === "company" && !isValidEuVatId(country, taxId))) return;
+    if (!isValidPostalCode(postalCode) || !isValidHuTaxId(taxId)) return;
     try {
       await patchBillingSettings({
-        billing_customer_type: customerType,
-        billing_full_name: fullName,
-        billing_company_name: customerType === "company" ? company : "",
-        billing_tax_id: customerType === "company" ? normalizeEuVatId(taxId) : "",
+        billing_customer_type: "company",
+        billing_full_name: "",
+        billing_company_name: company,
+        billing_tax_id: normalizeHuTaxId(taxId),
         billing_address_line: addressLine,
         billing_postal_code: postalCode,
         billing_city: city,
-        billing_country: country,
+        billing_country: FIXED_BILLING_COUNTRY,
       });
       for (const item of checkoutItems) {
         await purchaseAddonMutation.mutateAsync({ addon_code: item.addonCode, quantity: item.quantity });
       }
-      navigate("/admin/pricing", {
-        state: { addonCheckoutComplete: true, message: t("packages.addonCheckoutSuccessMessage"), status: "addon" },
+      navigate("/admin/forgalom", {
+        state: { addonCheckoutComplete: true, message: t("packages.addonCheckoutSuccessMessage") },
+        replace: true,
       });
     } catch {
       /* mutation error */
@@ -163,7 +143,7 @@ export default function PackagesAddonCheckoutPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || settingsLoading || !billingDetailsPrefilled) {
     return (
       <div className="p-6 w-full min-h-full bg-[var(--color-background)] text-[var(--color-foreground)]">
         <div>{t("common.loading")}</div>
@@ -205,12 +185,11 @@ export default function PackagesAddonCheckoutPage() {
     !acceptTerms ||
     purchaseAddonMutation.isPending ||
     (!billingDetailsLocked &&
-      (!fullName.trim() ||
-        !country.trim() ||
+      (!company.trim() ||
+        !isValidHuTaxId(taxId) ||
         !isValidPostalCode(postalCode) ||
         !city.trim() ||
-        !addressLine.trim() ||
-        (customerType === "company" && (!company.trim() || !isValidEuVatId(country, taxId))))) ||
+        !addressLine.trim())) ||
     !cardNumber.trim() ||
     !cardExpiry.trim() ||
     !cardCvc.trim();
@@ -226,19 +205,19 @@ export default function PackagesAddonCheckoutPage() {
           {checkoutItems.map((item) => (
             <div key={item.addonCode} className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-2 first:border-t-0 first:pt-0">
               <div>
-                <p className="font-medium">{addonCheckoutName(item.entry, locale, t)}</p>
+                <p className="font-medium">{addonCheckoutName(item.entry, t)}</p>
                 <p className="text-xs text-[var(--color-muted)]">
                   {t("packages.addonCheckoutQuantity")} <span className="tabular-nums">{item.quantity}</span>
                 </p>
               </div>
               <p className="font-medium tabular-nums">
-                {formatEuroLocaleFromCents(Number(item.entry.price_cents) * item.quantity, locale)} € {t("packages.taxSuffix")}
+                {formatEuroLocaleFromCents(Number(item.entry.price_cents) * item.quantity, locale)} Ft {t("packages.taxSuffix")}
               </p>
             </div>
           ))}
           <div className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] pt-2">
             <span className="text-[var(--color-muted)]">{t("packages.addonCheckoutLineTotal")}</span>
-            <span className="text-right font-medium tabular-nums">{lineTotalLabel} € {t("packages.taxSuffix")}</span>
+            <span className="text-right font-medium tabular-nums">{lineTotalLabel} Ft {t("packages.taxSuffix")}</span>
           </div>
         </div>
 
@@ -248,68 +227,14 @@ export default function PackagesAddonCheckoutPage() {
             <SavedBillingDetailsSummary settings={settings} onEdit={() => setBillingDetailsEditing(true)} />
           ) : (
           <div className="space-y-3">
-            <fieldset className="rounded-xl border border-[var(--color-border)] p-3">
-              <legend className="px-1 text-xs font-medium text-[var(--color-muted)]">{t("packages.checkoutCustomerType")}</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="billing_customer_type"
-                    checked={customerType === "company"}
-                    onChange={() => setCustomerType("company")}
-                    className="mr-1 shrink-0"
-                    style={{ width: "auto" }}
-                  />
-                  <span className="relative -top-[3px]">{t("packages.checkoutCustomerTypeCompany")}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="billing_customer_type"
-                    checked={customerType === "private"}
-                    onChange={() => setCustomerType("private")}
-                    className="mr-1 shrink-0"
-                    style={{ width: "auto" }}
-                  />
-                  <span className="relative -top-[3px]">{t("packages.checkoutCustomerTypePrivate")}</span>
-                </label>
-              </div>
-            </fieldset>
             <label className="block text-xs text-[var(--color-muted)]">
-              {customerType === "company" ? t("packages.checkoutRepresentativeName") : t("packages.checkoutFullName")}
+              {t("packages.checkoutCompanyRequired")}
               <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
                 className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                autoComplete="name"
+                autoComplete="organization"
               />
-            </label>
-            {customerType === "company" ? (
-              <label className="block text-xs text-[var(--color-muted)]">
-                {t("packages.checkoutCompanyRequired")}
-                <input
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                  autoComplete="organization"
-                />
-              </label>
-            ) : null}
-            <label className="block text-xs text-[var(--color-muted)]">
-              {t("packages.checkoutCountry")}
-              <select
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                autoComplete="country-name"
-              >
-                <option value="">{t("packages.checkoutCountrySelectPlaceholder")}</option>
-                {EU_COUNTRIES.map((item) => (
-                  <option key={item.code} value={item.code} disabled={item.disabled}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs text-[var(--color-muted)]">
@@ -343,17 +268,16 @@ export default function PackagesAddonCheckoutPage() {
                 autoComplete="street-address"
               />
             </label>
-            {customerType === "company" ? (
-              <label className="block text-xs text-[var(--color-muted)]">
-                {t("packages.checkoutTaxIdRequired")}
-                <input
-                  value={taxId}
-                  onChange={(e) => setTaxId(normalizeEuVatId(e.target.value))}
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                />
-                <span className="mt-1 block text-[11px] text-[var(--color-muted)]">{t("packages.checkoutTaxIdFormatHint")}</span>
-              </label>
-            ) : null}
+            <label className="block text-xs text-[var(--color-muted)]">
+              {t("packages.checkoutTaxIdRequired")}
+              <input
+                value={taxId}
+                onChange={(e) => setTaxId(normalizeHuTaxId(e.target.value))}
+                className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+                placeholder="12345678-1-42"
+              />
+              <span className="mt-1 block text-[11px] text-[var(--color-muted)]">{t("packages.checkoutTaxIdFormatHint")}</span>
+            </label>
           </div>
           )}
 

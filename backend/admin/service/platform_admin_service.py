@@ -537,6 +537,18 @@ class PlatformAdminService:
             for tenant in self.repository.list_active_tenants()
         ]
 
+    def list_tenants(self) -> list[dict]:
+        return [
+            {
+                "id": tenant.id,
+                "slug": tenant.slug,
+                "name": tenant.name,
+                "is_active": bool(tenant.is_active),
+                "created_at": tenant.created_at,
+            }
+            for tenant in self.repository.list_tenants()
+        ]
+
     def get_statistics(self) -> dict:
         return self.repository.platform_statistics()
 
@@ -555,6 +567,17 @@ class PlatformAdminService:
         if restored is None:
             raise ValueError("tenant_not_found")
         return restored
+
+    def activate_inactive_tenant(self, tenant_id: int, *, confirm_name: str, admin_user_id: int | None) -> dict:
+        statistics = self.repository.platform_tenant_statistics_detail(int(tenant_id))
+        if statistics is None:
+            raise ValueError("tenant_not_found")
+        tenant = dict(statistics.get("tenant") or {})
+        self._ensure_ai_page_name_confirmation(tenant, confirm_name)
+        activated = self.repository.activate_inactive_tenant(int(tenant_id), updated_by=admin_user_id)
+        if activated is None:
+            raise ValueError("tenant_not_found")
+        return activated
 
     def permanently_delete_cancelled_tenant(self, tenant_id: int, *, confirm_name: str, admin_user_id: int | None) -> dict:
         statistics = self.repository.platform_tenant_statistics_detail(int(tenant_id))

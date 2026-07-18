@@ -30,6 +30,15 @@ def non_negative_int(value: Any, default: int = 0) -> int:
         return max(0, int(default))
 
 
+def safe_int(value: Any, default: int = 0) -> int:
+    """Tetszőleges értéket intté normalizál (negatív is megengedett), hibánál defaulttal."""
+
+    try:
+        return int(value if value is not None else default)
+    except (TypeError, ValueError):
+        return int(default)
+
+
 def string_or_default(value: Any, default: str) -> str:
     """Tetszőleges értéket stringgé alakít, üres/None esetén defaulttal."""
 
@@ -40,5 +49,6 @@ __all__ = [
     "money_from_cents",
     "non_negative_int",
     "round_storage_gb",
+    "safe_int",
     "string_or_default",
 ]

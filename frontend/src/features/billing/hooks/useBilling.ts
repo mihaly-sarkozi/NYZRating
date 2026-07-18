@@ -37,6 +37,9 @@ export type BillingUpgradePreview = {
   total_charge_cents: number;
   paid_until_iso: string;
   currency: string;
+  sms_carryover_from_old_plan: number;
+  total_prepaid_months: number;
+  remaining_prepaid_months: number;
 };
 
 export type BillingUpgradeComplete = {
@@ -75,16 +78,22 @@ export type BillingOverview = {
 export type BillingAccessStatus = {
   restricted: boolean;
   payment_warning?: Record<string, unknown> | null;
+  tenant_active?: boolean;
+  billing_lock?: boolean;
+  recovery_mode?: boolean;
+  redirect_path?: string;
 };
+
+export async function fetchBillingAccessStatus(): Promise<BillingAccessStatus> {
+  const res = await api.get("/billing/access-status");
+  return res.data as BillingAccessStatus;
+}
 
 export function useBillingAccessStatus(options?: Omit<UseQueryOptions<BillingAccessStatus>, "queryKey" | "queryFn">) {
   const user = useAuthStore((s) => s.user);
   return useQuery({
     queryKey: queryKeys.billingAccessStatus,
-    queryFn: async () => {
-      const res = await api.get("/billing/access-status");
-      return res.data as BillingAccessStatus;
-    },
+    queryFn: fetchBillingAccessStatus,
     enabled: Boolean(user),
     ...options,
   });
@@ -138,8 +147,12 @@ export function useCompleteUpgradeMutation(
       return res.data as BillingUpgradeComplete;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview });
-      await queryClient.invalidateQueries({ queryKey: ["billing", "upgradePreview"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview }),
+        queryClient.invalidateQueries({ queryKey: ["billing", "upgradePreview"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trafficSmsSends }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trafficOverview }),
+      ]);
     },
     ...options,
   });
@@ -159,7 +172,11 @@ export function useUpdateSubscriptionMutation(
       return res.data as { status: string; message: string };
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trafficSmsSends }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trafficOverview }),
+      ]);
     },
     ...options,
   });
@@ -238,7 +255,11 @@ export function usePurchaseAddonMutation(
       return res.data as Record<string, unknown>;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trafficSmsSends }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trafficOverview }),
+      ]);
     },
     ...options,
   });

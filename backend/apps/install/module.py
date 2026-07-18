@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from apps.demo.bootstrap.app_module import DemoAppModule as _DemoAppModule
+from apps.install.bootstrap.app_module import InstallAppModule as _InstallAppModule
 from core.kernel.interface import BaseAppModule
 
 
-class DemoAppModule(_DemoAppModule, BaseAppModule):
+class InstallAppModule(_InstallAppModule, BaseAppModule):
     pass
 
 
 def get_module() -> BaseAppModule:
-    return DemoAppModule()
+    return InstallAppModule()
 
 
-__all__ = ["DemoAppModule", "get_module"]
+__all__ = ["InstallAppModule", "get_module"]

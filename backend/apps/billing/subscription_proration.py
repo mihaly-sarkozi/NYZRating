@@ -17,13 +17,6 @@ from apps.billing.calculations import (
 from apps.billing.domain import BillingPlan
 from apps.billing.models import DEFAULT_CURRENCY, BillingSubscriptionORM
 
-TRAINING_INITIAL_FEE_CENTS_BY_PLAN: dict[str, int] = {
-    "free": 0,
-    "starter": 2900,
-    "growth": 8900,
-    "business": 48900,
-}
-
 
 def is_downgrade(
     *,
@@ -93,8 +86,9 @@ def paid_until_after_upgrade(upgrade_date: date, normalized_period: str) -> date
 
 
 def training_initial_fee_cents_for_plan(plan_code: str) -> int:
-    normalized = str(plan_code or "").strip().lower()
-    return int(TRAINING_INITIAL_FEE_CENTS_BY_PLAN.get(normalized, 0))
+    # NYZ Rating: nincs egyszeri betanítási költség
+    _ = plan_code
+    return 0
 
 
 def upgrade_training_initial_fee_cents(
@@ -105,6 +99,41 @@ def upgrade_training_initial_fee_cents(
     already_paid = training_initial_fee_cents_for_plan(current_plan_code)
     target_fee = training_initial_fee_cents_for_plan(next_plan_code)
     return max(0, target_fee - already_paid)
+
+
+def months_inclusive(start: date, end: date) -> int:
+    """Két dátum közötti naptári hónapok száma (mindkét hónap beleszámít)."""
+
+    if end < start:
+        return 0
+    return (end.year - start.year) * 12 + (end.month - start.month) + 1
+
+
+def remaining_prepaid_months(
+    *,
+    today: date,
+    coverage_start: date,
+    coverage_end: date,
+    prepaid_months: int,
+) -> int:
+    """A még el nem kezdődött ciklus-hónapok száma.
+
+    A csomag a coverage_start napjától prepaid_months hónapegységre szól.
+    Az aktuális (már megkezdett) egység nem jár jóváírással — helyette az SMS-maradék jön át.
+    Példa: ma indult negyedéves (3 hónap) → 3 - 1 = 2 hónap jóváírás.
+    """
+
+    total = max(0, int(prepaid_months or 0))
+    if total <= 0 or today > coverage_end:
+        return 0
+    started = 0
+    for index in range(total):
+        unit_start = add_months_to_date(coverage_start, index)
+        if unit_start <= today:
+            started += 1
+        else:
+            break
+    return max(0, total - started)
 
 
 def compute_upgrade_proration(
@@ -127,13 +156,21 @@ def compute_upgrade_proration(
     old_m = plan_monthly_charge_cents_after_discount(int(current_plan.price_cents), subscription.billing_period)
     new_m = plan_monthly_charge_cents_after_discount(int(next_plan.price_cents), normalized_period)
     delta_m = max(0, new_m - old_m)
+    prepaid_months = billing_period_multiplier(subscription.billing_period)
     coverage_end = coverage_end_for_subscription(subscription, period_end)
-    coverage_start = coverage_start_for_end(coverage_end, subscription.billing_period)
-    total_d, rem_d, frac = proration_calendar_fraction(coverage_start, coverage_end, today)
-    old_period_charge = old_m * billing_period_multiplier(subscription.billing_period)
-    old_remaining_credit = int(round(old_period_charge * rem_d / max(1, total_d)))
-    old_remaining_credit = max(0, old_remaining_credit)
+    # Fizetős lefedés: paid_until-tól vissza a ciklus hosszával (= váltás/vásárlás napja).
+    coverage_start = add_months_to_date(coverage_end, -prepaid_months)
+    # Jóváírás: csak a még el nem kezdődött ciklus-hónapok × régi havidíj.
+    remaining_months = remaining_prepaid_months(
+        today=today,
+        coverage_start=coverage_start,
+        coverage_end=coverage_end,
+        prepaid_months=prepaid_months,
+    )
+    total_months = prepaid_months
+    old_remaining_credit = max(0, int(old_m) * remaining_months)
     next_period_charge = new_m * billing_period_multiplier(normalized_period)
+    # Az új csomag a váltás napjától a választott ciklus végéig tart (pl. negyedév = +3 hónap).
     paid_until = paid_until_after_upgrade(today, normalized_period)
     training_initial_fee_cents = upgrade_training_initial_fee_cents(
         current_plan_code=subscription.plan_code,
@@ -142,9 +179,11 @@ def compute_upgrade_proration(
     total_charge = max(0, next_period_charge - old_remaining_credit) + max(0, int(training_initial_fee_cents))
     return {
         "immediate_use": True,
-        "total_period_days": total_d,
-        "remaining_period_days": rem_d,
-        "proration_fraction": round(frac, 4),
+        "total_period_days": total_months,
+        "remaining_period_days": remaining_months,
+        "proration_fraction": round(remaining_months / max(1, total_months), 4),
+        "total_prepaid_months": total_months,
+        "remaining_prepaid_months": remaining_months,
         "old_plan_code": subscription.plan_code,
         "new_plan_code": normalized_plan,
         "old_monthly_cents": old_m,
@@ -160,6 +199,21 @@ def compute_upgrade_proration(
     }
 
 
+def questions_carryover_from_started_month(
+    *,
+    old_plan_questions_monthly: int,
+    used_total: int,
+) -> int:
+    """A megkezdett hónapból fennmaradó csomag-SMS keretet adja vissza (addon nélkül).
+
+    Upgrade esetén ezt a maradékot a felhasználó magával viszi az új csomagba.
+    """
+
+    monthly = max(0, int(old_plan_questions_monthly or 0))
+    used_from_plan = min(max(0, int(used_total or 0)), monthly)
+    return max(0, monthly - used_from_plan)
+
+
 __all__ = [
     "compute_upgrade_proration",
     "coverage_end_for_subscription",
@@ -167,6 +221,9 @@ __all__ = [
     "is_billing_period_downgrade",
     "is_downgrade",
     "is_scheduled_change",
+    "months_inclusive",
+    "questions_carryover_from_started_month",
+    "remaining_prepaid_months",
     "training_initial_fee_cents_for_plan",
     "upgrade_training_initial_fee_cents",
     "paid_until_after_upgrade",

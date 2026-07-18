@@ -5,6 +5,7 @@ type PackageCurrentPlanBannerProps = {
   currentPlanCode: string;
   currentBillingPeriod: BillingPeriod;
   bannerValidityDate: string | null;
+  freeSmsCount?: number | null;
   scheduledPlanCode: string | null;
   scheduledPlanName: string | null;
   scheduledBillingPeriod: BillingPeriod;
@@ -18,6 +19,7 @@ export default function PackageCurrentPlanBanner({
   currentPlanCode,
   currentBillingPeriod,
   bannerValidityDate,
+  freeSmsCount,
   scheduledPlanCode,
   scheduledPlanName,
   scheduledBillingPeriod,
@@ -43,6 +45,11 @@ export default function PackageCurrentPlanBanner({
               <span>{t("packages.yourPlanBannerValidityPrefix")}</span>
               <span className="font-semibold text-[var(--color-foreground)]">{bannerValidityDate}</span>
               <span>{t("packages.yourPlanBannerValiditySuffix")}</span>
+            </p>
+          ) : null}
+          {currentPlanCode === "free" && freeSmsCount != null && freeSmsCount > 0 ? (
+            <p className="font-normal text-[var(--color-muted)]">
+              {t("packages.yourPlanBannerFreeSms").replace("{{count}}", String(freeSmsCount))}
             </p>
           ) : null}
           {scheduledPlanCode != null && scheduledPlanName != null ? (

@@ -41,6 +41,10 @@ from admin.web.schemas.platform_admin_schemas import (
     PlatformAdminChangePasswordRequest,
     PlatformAdminDebugDateRequest,
     PlatformAdminDebugDateResponse,
+    PlatformAdminBillingPaymentSimulationRequest,
+    PlatformAdminBillingPaymentSimulationResponse,
+    PlatformAdminSmsQuotaSimulationRequest,
+    PlatformAdminSmsQuotaSimulationResponse,
     PlatformAdminDemoSignupGateResponse,
     PlatformAdminDemoSignupGateUpdateRequest,
     PlatformAdminLoginRequest,
@@ -529,6 +533,16 @@ def list_active_tenants(
     return service.list_active_tenants()
 
 
+@router.get("/tenants", response_model=list[PlatformAdminTenantResponse])
+@limiter.limit("60/minute")
+def list_platform_tenants(
+    request: Request,
+    service: PlatformAdminService = Depends(get_platform_admin_service),
+    _user: PlatformAdminUserORM = Depends(current_platform_admin),
+):
+    return service.list_tenants()
+
+
 @router.get("/statistics/overview", response_model=PlatformAdminStatisticsResponse)
 @limiter.limit("60/minute")
 def platform_statistics_overview(
@@ -568,14 +582,17 @@ def set_platform_admin_simulated_date(
     audit: AuditService = Depends(get_audit_service),
 ):
     raw = (body.simulated_date or "").strip()
+    payment_outcome = (body.payment_simulation_outcome or "").strip().lower() or None
+    if payment_outcome is not None and payment_outcome not in {"success", "failed"}:
+        raise HTTPException(status_code=400, detail="Invalid payment_simulation_outcome")
     if not raw:
-        result = billing_service.set_debug_simulated_date(None)
+        result = billing_service.set_debug_simulated_date(None, payment_outcome=payment_outcome)
     else:
         try:
             parsed = date.fromisoformat(raw)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid date") from exc
-        result = billing_service.set_debug_simulated_date(parsed)
+        result = billing_service.set_debug_simulated_date(parsed, payment_outcome=payment_outcome)
     _audit_log(
         audit,
         AuditLogAction.PLATFORM_ADMIN_STATS_VIEWED,
@@ -583,7 +600,11 @@ def set_platform_admin_simulated_date(
         actor_type="platform_admin",
         target_type="platform_admin",
         target_id=str(user.id),
-        details={"section": "simulated_date", "simulated_date": result.simulated_date},
+        details={
+            "section": "simulated_date",
+            "simulated_date": result.simulated_date,
+            "payment_simulation_outcome": result.payment_simulation_outcome,
+        },
     )
     return result
 
@@ -607,6 +628,67 @@ def clear_platform_admin_simulated_date(
         details={"section": "simulated_date", "simulated_date": None},
     )
     return result
+
+
+@router.post("/debug/billing-payment-simulation", response_model=PlatformAdminBillingPaymentSimulationResponse)
+@limiter.limit("20/minute")
+def simulate_platform_admin_billing_payment(
+    request: Request,
+    body: PlatformAdminBillingPaymentSimulationRequest = Body(...),
+    billing_service=Depends(get_billing_usage_service),
+    user: PlatformAdminUserORM = Depends(current_platform_admin),
+    audit: AuditService = Depends(get_audit_service),
+):
+    try:
+        result = billing_service.simulate_open_invoice_payments(outcome=body.outcome)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _audit_log(
+        audit,
+        AuditLogAction.PLATFORM_ADMIN_STATS_VIEWED,
+        user_id=user.id,
+        actor_type="platform_admin",
+        target_type="platform_admin",
+        target_id=str(user.id),
+        details={
+            "section": "billing_payment_simulation",
+            "outcome": result.get("outcome"),
+            "processed": result.get("processed"),
+        },
+    )
+    return PlatformAdminBillingPaymentSimulationResponse(**result)
+
+
+@router.post("/debug/sms-quota", response_model=PlatformAdminSmsQuotaSimulationResponse)
+@limiter.limit("20/minute")
+def set_platform_admin_sms_quota(
+    request: Request,
+    body: PlatformAdminSmsQuotaSimulationRequest = Body(...),
+    billing_service=Depends(get_billing_usage_service),
+    user: PlatformAdminUserORM = Depends(current_platform_admin),
+    audit: AuditService = Depends(get_audit_service),
+):
+    try:
+        result = billing_service.set_debug_sms_quota(tenant_id=body.tenant_id, sms_quota=body.sms_quota)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "tenant_not_found":
+            raise HTTPException(status_code=404, detail="Tenant not found") from exc
+        raise HTTPException(status_code=400, detail=code) from exc
+    _audit_log(
+        audit,
+        AuditLogAction.PLATFORM_ADMIN_STATS_VIEWED,
+        user_id=user.id,
+        actor_type="platform_admin",
+        target_type="tenant",
+        target_id=str(body.tenant_id),
+        details={
+            "section": "sms_quota_simulation",
+            "sms_quota": result.get("sms_quota"),
+            "slug": result.get("slug"),
+        },
+    )
+    return PlatformAdminSmsQuotaSimulationResponse(**result)
 
 
 @router.get("/statistics/tenants/{tenant_id}")
@@ -661,6 +743,44 @@ def restore_platform_tenant(
         details={"action": "tenant_restore", "tenant_slug": tenant.get("slug")},
     )
     return OperationStatusResponse(message="Tenant restored")
+
+
+@router.post("/tenants/{tenant_id}/activate", response_model=OperationStatusResponse)
+@limiter.limit("10/minute")
+def activate_platform_tenant(
+    request: Request,
+    tenant_id: int,
+    body: PlatformAdminTenantActionRequest = Body(...),
+    service: PlatformAdminService = Depends(get_platform_admin_service),
+    user: PlatformAdminUserORM = Depends(current_platform_admin),
+    audit: AuditService = Depends(get_audit_service),
+):
+    try:
+        tenant = service.activate_inactive_tenant(tenant_id, confirm_name=body.confirm_name, admin_user_id=user.id)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "tenant_not_found":
+            raise HTTPException(status_code=404, detail="Tenant not found") from exc
+        if code == "tenant_confirmation_mismatch":
+            raise HTTPException(status_code=400, detail="AI oldal név megerősítés nem egyezik") from exc
+        if code == "tenant_is_temporary_deleted":
+            raise HTTPException(
+                status_code=409,
+                detail="Ideiglenesen törölt oldalhoz használd a Visszaállítás műveletet.",
+            ) from exc
+        if code == "tenant_already_active":
+            raise HTTPException(status_code=409, detail="Az oldal már aktív.") from exc
+        raise HTTPException(status_code=409, detail=code) from exc
+    _audit_log(
+        audit,
+        AuditLogAction.PLATFORM_ADMIN_STATS_VIEWED,
+        user_id=user.id,
+        actor_type="platform_admin",
+        target_type="tenant",
+        target_id=str(tenant_id),
+        details={"action": "tenant_activate", "tenant_slug": tenant.get("slug")},
+    )
+    return OperationStatusResponse(message="Tenant activated")
 
 
 @router.post("/tenants/{tenant_id}/permanent-delete", response_model=OperationStatusResponse)

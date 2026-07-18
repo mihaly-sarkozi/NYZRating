@@ -6,7 +6,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from apps.settings.domain.settings_state import LocaleSettingsState, SettingsState
+from apps.settings.domain.settings_state import LocaleSettingsState
+
+# Egyelőre nincs UI a lokalizációhoz: mindig ezek az értékek érvényesek.
+FIXED_LOCALE_SETTINGS = LocaleSettingsState(
+    timezone="Europe/Budapest",
+    date_format="YYYY-MM-DD",
+    time_format="HH:mm",
+)
 
 
 @dataclass(frozen=True)
@@ -20,25 +27,13 @@ class LocaleSettingsService:
     def __init__(self, *, core_settings_service) -> None:
         self._core_settings_service = core_settings_service
 
-    @staticmethod
-    def _coerce_locale_settings(payload: dict[str, object]) -> LocaleSettingsState:
-        return LocaleSettingsState(
-            timezone=str(payload.get("timezone", SettingsState().timezone) or SettingsState().timezone),  # type: ignore[arg-type]
-            date_format=str(payload.get("date_format", SettingsState().date_format) or SettingsState().date_format),  # type: ignore[arg-type]
-            time_format=str(payload.get("time_format", SettingsState().time_format) or SettingsState().time_format),  # type: ignore[arg-type]
-        )
-
     def get_locale_settings(self) -> LocaleSettingsState:
-        return self._coerce_locale_settings(self._core_settings_service.get_locale_settings())
+        return FIXED_LOCALE_SETTINGS
 
     def update_locale_settings(self, *, payload: LocaleSettingsUpdate, updated_by: int | None = None) -> LocaleSettingsState:
-        state = self._core_settings_service.update_locale_settings(
-            timezone=payload.timezone,
-            date_format=payload.date_format,
-            time_format=payload.time_format,
-            updated_by=updated_by,
-        )
-        return self._coerce_locale_settings(state)
+        # Modul megmarad, de a beállítás egyelőre nem változtatható.
+        _ = payload, updated_by, self._core_settings_service
+        return FIXED_LOCALE_SETTINGS
 
 
-__all__ = ["LocaleSettingsService", "LocaleSettingsUpdate"]
+__all__ = ["FIXED_LOCALE_SETTINGS", "LocaleSettingsService", "LocaleSettingsUpdate"]

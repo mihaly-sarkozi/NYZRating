@@ -470,6 +470,7 @@ def _apply_public_billing_schema(engine: Engine) -> None:
                 CREATE TABLE IF NOT EXISTS public.billing_debug_state (
                     id SERIAL PRIMARY KEY,
                     simulated_date DATE,
+                    payment_simulation_outcome VARCHAR(16) NOT NULL DEFAULT 'success',
                     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
@@ -540,6 +541,105 @@ def _apply_public_billing_schema(engine: Engine) -> None:
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_cancellation_requests_requested_by_user_id ON public.tenant_cancellation_requests (requested_by_user_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_cancellation_requests_status ON public.tenant_cancellation_requests (status)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tenant_cancellation_requests_requested_at ON public.tenant_cancellation_requests (requested_at)"))
+        _commit_if_possible(conn)
+
+
+def _apply_public_billing_debug_payment_outcome_schema(engine: Engine) -> None:
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE public.billing_debug_state
+                ADD COLUMN IF NOT EXISTS payment_simulation_outcome VARCHAR(16) NOT NULL DEFAULT 'success'
+                """
+            )
+        )
+        _commit_if_possible(conn)
+
+
+def _apply_public_traffic_question_usage_schema(engine: Engine) -> None:
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.traffic_question_usage (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL,
+                    period_key VARCHAR(16) NOT NULL,
+                    question_count INTEGER NOT NULL DEFAULT 0,
+                    last_question_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    CONSTRAINT uq_traffic_question_usage_tenant_user_period
+                        UNIQUE (tenant_id, user_id, period_key)
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.traffic_question_usage_totals (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+                    period_key VARCHAR(16) NOT NULL,
+                    question_count INTEGER NOT NULL DEFAULT 0,
+                    last_question_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    CONSTRAINT uq_traffic_question_usage_totals_tenant_period
+                        UNIQUE (tenant_id, period_key)
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.traffic_question_events (
+                    id BIGSERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL,
+                    period_key VARCHAR(16) NOT NULL,
+                    event_type VARCHAR(32) NOT NULL,
+                    question_delta INTEGER NOT NULL DEFAULT 1,
+                    request_context JSONB NOT NULL DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_question_usage_tenant_id ON public.traffic_question_usage (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_question_usage_period_key ON public.traffic_question_usage (period_key)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_question_usage_totals_tenant_id ON public.traffic_question_usage_totals (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_question_events_tenant_id ON public.traffic_question_events (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_question_events_period_key ON public.traffic_question_events (period_key)"))
+        _commit_if_possible(conn)
+
+
+def _apply_public_traffic_sms_sends_schema(engine: Engine) -> None:
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS public.traffic_sms_sends (
+                    id BIGSERIAL PRIMARY KEY,
+                    tenant_id INTEGER NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+                    created_by_user_id INTEGER NOT NULL,
+                    recipient_name VARCHAR(200) NOT NULL,
+                    phone VARCHAR(32) NOT NULL,
+                    scheduled_at TIMESTAMPTZ NOT NULL,
+                    status VARCHAR(32) NOT NULL DEFAULT 'sent',
+                    period_key VARCHAR(16) NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_sms_sends_tenant_id ON public.traffic_sms_sends (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_sms_sends_created_at ON public.traffic_sms_sends (created_at DESC)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_traffic_sms_sends_period_key ON public.traffic_sms_sends (period_key)"))
         _commit_if_possible(conn)
 
 
@@ -744,6 +844,21 @@ def _public_migrations() -> tuple[PublicSchemaMigration, ...]:
             revision="platform.public.0013_tenant_cancellation_notifications",
             description="Tenant cancellation notification tracking columns",
             apply=_apply_public_tenant_cancellation_notifications_schema,
+        ),
+        PublicSchemaMigration(
+            revision="platform.public.0014_traffic_question_usage",
+            description="Central outbound inquiry (megkeresés) usage tables for traffic/billing limits",
+            apply=_apply_public_traffic_question_usage_schema,
+        ),
+        PublicSchemaMigration(
+            revision="platform.public.0015_traffic_sms_sends",
+            description="SMS send log for customer outreach on traffic page",
+            apply=_apply_public_traffic_sms_sends_schema,
+        ),
+        PublicSchemaMigration(
+            revision="platform.public.0016_billing_debug_payment_outcome",
+            description="Billing debug payment simulation outcome column",
+            apply=_apply_public_billing_debug_payment_outcome_schema,
         ),
     )
 

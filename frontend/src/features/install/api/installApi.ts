@@ -47,7 +47,7 @@ export async function checkSlug(slug: string): Promise<CheckSlugResponse> {
   throw lastError;
 }
 
-export interface DemoSignupBody {
+export interface InstallSignupBody {
   email: string;
   name: string;
   locale?: "hu" | "en" | "es";
@@ -61,7 +61,7 @@ export interface DemoSignupBody {
   demo_session_id: string;
 }
 
-export interface DemoSignupResponse {
+export interface InstallSignupResponse {
   slug: string;
   message: string;
   host_hint: string;
@@ -71,19 +71,19 @@ export interface DemoSignupResponse {
   resent_existing: boolean;
 }
 
-export async function demoSignup(body: DemoSignupBody): Promise<DemoSignupResponse> {
-  const { data } = await api.post<DemoSignupResponse>(`${BASE}/installer/tenant-signup`, body);
+export async function installSignup(body: InstallSignupBody): Promise<InstallSignupResponse> {
+  const { data } = await api.post<InstallSignupResponse>(`${BASE}/installer/tenant-signup`, body);
   return data;
 }
 
-export async function resolveDemoLogin(token: string): Promise<{ redirect_to: string }> {
+export async function resolveInstallLogin(token: string): Promise<{ redirect_to: string }> {
   const { data } = await api.get<{ redirect_to: string }>(`${BASE}/installer/demo-login/resolve`, {
     params: { token },
   });
   return data;
 }
 
-export async function consumeDemoLogin(token: string): Promise<{ access_token: string }> {
+export async function consumeInstallLogin(token: string): Promise<{ access_token: string }> {
   const { data } = await api.post<{ access_token: string }>("/auth/demo-login", { token });
   return data;
 }

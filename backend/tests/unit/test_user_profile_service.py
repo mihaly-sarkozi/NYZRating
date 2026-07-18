@@ -111,6 +111,7 @@ def test_get_me_uses_owner_fallback_and_tenant_flags():
     assert payload["theme"] == "dark"
     assert payload["tenant_demo_mode"] is True
     assert payload["tenant_kb_has_training"] is False
+    assert payload["tenant_name"] == "Demo Tenant"
 
 
 def test_update_me_normalizes_invalid_preferences_to_none():

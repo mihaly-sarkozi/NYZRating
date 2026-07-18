@@ -10,7 +10,7 @@ type PackagePlanCardProps = {
   currentBillingPeriod: BillingPeriod;
   pending: boolean;
   resourceBlocked: boolean;
-  trainingInitialSubline: string;
+  locale: string;
   t: (key: string) => string;
   onSwitch: (planCode: string) => void;
 };
@@ -24,7 +24,7 @@ export default function PackagePlanCard({
   currentBillingPeriod,
   pending,
   resourceBlocked,
-  trainingInitialSubline,
+  locale,
   t,
   onSwitch,
 }: PackagePlanCardProps) {
@@ -45,7 +45,7 @@ export default function PackagePlanCard({
       <span>{line}</span>
     </li>
   );
-  const { monthEuro, listPeriodEuro, subline } = paidPriceDisplay(plan, selectedBillingPeriod, t);
+  const { monthEuro, listPeriodEuro, subline } = paidPriceDisplay(plan, selectedBillingPeriod, t, locale);
 
   return (
     <div className={`flex flex-col rounded-xl overflow-hidden ${borderClass}`}>
@@ -79,9 +79,6 @@ export default function PackagePlanCard({
               ) : null}
             </p>
           ) : null}
-          <p className="text-sm font-medium text-[var(--color-foreground)] mt-1.5 leading-snug rounded-md px-2 py-1.5 bg-neutral-400/55 dark:bg-neutral-600">
-            {trainingInitialSubline}
-          </p>
         </div>
 
         <ul className="text-sm text-[var(--color-foreground)] space-y-2 flex-1">

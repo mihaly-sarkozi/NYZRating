@@ -10,9 +10,10 @@ const GuardFallback = () => (
   </div>
 );
 
-// Megjegyzés: a korábbi marketing "landing" app törölve lett az alaprendszerből.
-// Fő domainen egyelőre a telepítő (/demo) a belépési pont; ha lesz saját
-// marketing oldal, ide kell majd bekötni.
+/**
+ * Tenant aldomain gyökér: login / admin.
+ * A fő domain „/” útvonalát a landing modul szolgálja ki.
+ */
 export default function RootEntryRoute() {
   const { user, loadingUser } = useAuthStore();
 
@@ -22,5 +23,5 @@ export default function RootEntryRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  return <Navigate to="/demo" replace />;
+  return <Navigate to="/" replace />;
 }

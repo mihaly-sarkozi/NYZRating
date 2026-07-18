@@ -15,9 +15,9 @@ export default function PageHeader({ eyebrow, title, description, actions, class
       <div>
         {eyebrow ? <p className="app-page-eyebrow">{eyebrow}</p> : null}
         <h1 className="app-page-title">{title}</h1>
-        {description ? <p className="app-page-intro">{description}</p> : null}
+        {description ? <div className="app-page-intro">{description}</div> : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+      {actions ? <div className="flex flex-wrap items-start gap-3">{actions}</div> : null}
     </div>
   );
 }

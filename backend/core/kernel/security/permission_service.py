@@ -23,6 +23,8 @@ def build_default_role_permissions() -> dict[str, set[str]]:
             "settings.write",
             "domain.read",
             "domain.write",
+            "traffic.read",
+            "traffic.write",
         },
         "user": {
             "auth.login",

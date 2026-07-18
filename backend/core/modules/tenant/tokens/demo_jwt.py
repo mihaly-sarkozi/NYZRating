@@ -46,8 +46,8 @@ class DemoLoginTokenService:
     def build_demo_login_link(self, token: str, tenant_slug: str | None = None) -> str:
         if tenant_slug:
             tenant_base = self._request_base_url_builder(tenant_slug).rstrip("/")
-            return f"{tenant_base}/demo-login?token={token}"
-        return f"{self._frontend_base_for_install_host()}/demo-login?token={token}"
+            return f"{tenant_base}/install-login?token={token}"
+        return f"{self._frontend_base_for_install_host()}/install-login?token={token}"
 
     def decode_demo_token(self, token: str) -> dict[str, Any]:
         try:

@@ -83,6 +83,38 @@ class TenantMiddleware:
             routing_policy=self._routing_policy,
         )
 
+    @staticmethod
+    def _is_billing_recovery_path(path: str) -> bool:
+        if path.startswith("/api/auth/"):
+            return True
+        if path.startswith("/api/billing/"):
+            return True
+        if path == "/api/settings" or path.startswith("/api/settings/"):
+            # Locale/settings olvasás a számlázási UI-hoz; írás is engedett recovery alatt.
+            return True
+        return False
+
+    def _has_unpaid_billing_debt(self, tenant_id: int) -> bool:
+        try:
+            from core.kernel.deps.facade import get_service
+            from core.kernel.interface.keys import PLATFORM_TENANT_USAGE_SERVICE
+
+            billing = get_service(PLATFORM_TENANT_USAGE_SERVICE)
+            return bool(billing.has_unpaid_subscription_debt(int(tenant_id)))
+        except Exception:
+            return False
+
+    def _try_billing_recovery(self, snapshot, path: str) -> bool | str:
+        """Inaktív tenant tartozással: engedélyezett recovery path, egyébként blocked_path, nincs tartozás: False."""
+        tenant_id = getattr(snapshot, "tenant_id", None)
+        if tenant_id is None:
+            return False
+        if not self._has_unpaid_billing_debt(int(tenant_id)):
+            return False
+        if self._is_billing_recovery_path(path):
+            return True
+        return "blocked_path"
+
     # Ez az aszinkron metódus a Python-specifikus speciális működést valósítja meg.
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -223,19 +255,32 @@ class TenantMiddleware:
             try:
                 self._lifecycle_policy.assert_routable(snapshot)
             except ValueError:
-                state["tenant_resolution_outcome"] = "inactive_tenant"
-                increment_metric("platform.tenant.resolution.failure.count", 1.0, tags={"reason": "inactive_tenant"})
-                log_timing_debug(
-                    "tenant.middleware.inactive_tenant",
-                    slug=snapshot.slug,
-                    host=host,
-                )
-                await _send_json_response(
-                    scope, send, 404,
-                    {"detail": "404"}
-                )
-                current_tenant_schema.reset(token)
-                return
+                recovery = self._try_billing_recovery(snapshot, path)
+                if not recovery:
+                    state["tenant_resolution_outcome"] = "inactive_tenant"
+                    increment_metric("platform.tenant.resolution.failure.count", 1.0, tags={"reason": "inactive_tenant"})
+                    log_timing_debug(
+                        "tenant.middleware.inactive_tenant",
+                        slug=snapshot.slug,
+                        host=host,
+                    )
+                    await _send_json_response(
+                        scope, send, 404,
+                        {"detail": "404"}
+                    )
+                    current_tenant_schema.reset(token)
+                    return
+                if recovery == "blocked_path":
+                    state["tenant_resolution_outcome"] = "billing_recovery_blocked"
+                    await _send_json_response(
+                        scope,
+                        send,
+                        403,
+                        {"detail": "A szolgáltatás tartozás miatt korlátozott. Csak a számlázás érhető el."},
+                    )
+                    current_tenant_schema.reset(token)
+                    return
+                state["billing_recovery_mode"] = True
             apply_tenant_snapshot(state, snapshot)
             state["tenant_resolution_outcome"] = "resolved"
             current_tenant_schema.set(snapshot.slug)

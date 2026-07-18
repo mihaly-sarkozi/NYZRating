@@ -1,11 +1,16 @@
 import type { BillingCatalogEntry } from "../../billing/hooks/useBilling";
 import type { SettingsDateFormat, SettingsTimezone } from "../../../api/services/settingsService";
 import { formatDateOnly } from "../../../utils/dateTimeFormatting";
+import { formatForintAmount, formatForintFromCents, localeTagForNumbers } from "../../../utils/moneyFormatting";
 
-export const PLAN_ORDER = ["free", "starter", "growth", "business"] as const;
+export { formatForintAmount, formatForintFromCents, localeTagForNumbers };
+
+export const PLAN_ORDER = ["free", "starter", "pro", "business"] as const;
+
 export const FLEX_STORAGE_GB_BUNDLE = 5;
 
-const PLAN_RANK: Record<string, number> = { free: 0, starter: 1, growth: 2, business: 3 };
+const PLAN_RANK: Record<string, number> = { free: 0, starter: 1, pro: 2, business: 3 };
+
 const BILLING_PERIOD_RANK: Record<string, number> = { monthly: 1, quarterly: 2, yearly: 3 };
 
 export type BillingPeriod = "monthly" | "quarterly" | "yearly";
@@ -32,10 +37,37 @@ export function sortPlans(entries: BillingCatalogEntry[]): BillingCatalogEntry[]
   return copy;
 }
 
-export function localeTagForNumbers(locale: string): string {
-  if (locale === "es") return "es-ES";
-  if (locale === "en") return "en-GB";
-  return "hu-HU";
+export function formatEuroLocaleFromCents(cents: number, locale: string): string {
+  return formatForintFromCents(cents, locale);
+}
+
+export function billingPeriodMonths(period: string): number {
+  const p = (period || "monthly").toLowerCase();
+  if (p === "quarterly") return 3;
+  if (p === "yearly") return 12;
+  return 1;
+}
+
+/** Hónapok hozzáadása dátumhoz (YYYY-MM-DD), a napot a célhónap hosszához igazítva. */
+export function addMonthsToDateIso(isoDate: string, months: number): string {
+  const base = new Date(`${isoDate.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(base.getTime())) return isoDate.slice(0, 10);
+  const day = base.getDate();
+  const shifted = new Date(base.getFullYear(), base.getMonth() + months, 1);
+  const lastDay = new Date(shifted.getFullYear(), shifted.getMonth() + 1, 0).getDate();
+  shifted.setDate(Math.min(day, lastDay));
+  const y = shifted.getFullYear();
+  const m = String(shifted.getMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export function todayDateIso(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 export function formatTrainingCharsLabel(chars: number): string {
@@ -62,13 +94,6 @@ export function flooredMonthlyEuroAfterDiscount(priceCents: number, selectedPeri
   return Math.floor(Number(monthlyDiscCents) / 100);
 }
 
-export function formatEuroLocaleFromCents(cents: number, locale: string): string {
-  const value = Number(cents) / 100;
-  const tag = localeTagForNumbers(locale);
-  const whole = Math.round(value * 100) % 100 === 0;
-  return value.toLocaleString(tag, whole ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 1, maximumFractionDigits: 2 });
-}
-
 export function getStoragePerGbCents(catalog: BillingCatalogEntry[]): number {
   const row = catalog.find((entry) => entry.entry_type === "addon" && entry.code === "extra_storage_gb");
   return row ? Number(row.price_cents) : 500;
@@ -92,19 +117,23 @@ export function getTrainingInitialAddonInfo(catalog: BillingCatalogEntry[]): { e
 }
 
 export function trainingInitialFeeEuroForPlan(planCode: string, catalog: BillingCatalogEntry[]): number {
-  const normalized = String(planCode || "").toLowerCase();
-  if (normalized === "growth") return 89;
-  if (normalized === "business") return 489;
-  return getTrainingInitialAddonInfo(catalog).euro;
+  // NYZ Rating: nincs betanítási induló díj a csomagokban
+  void planCode;
+  void catalog;
+  return 0;
 }
 
 export function planCardFeatureSections(entry: BillingCatalogEntry, t: (key: string) => string) {
   const inc = entry.included ?? {};
   const meta = entry.metadata ?? {};
   const beforeUsers: string[] = [];
+  // NYZ Rating: a csomagok elsődleges limije a kimenő SMS megkeresésszám (egyszer jelenik meg)
+  if (inc.questions_monthly != null) {
+    const lineKey = entry.code === "free" ? "packages.lineQuestionsTrial" : "packages.lineQuestions";
+    beforeUsers.push(t(lineKey).replace("{{count}}", String(inc.questions_monthly)));
+  }
   if (inc.knowledge_bases != null) beforeUsers.push(t("packages.lineKbs").replace("{{count}}", String(inc.knowledge_bases)));
   if (inc.storage_gb != null) beforeUsers.push(t("packages.lineStorage").replace("{{count}}", String(inc.storage_gb)));
-  if (inc.questions_monthly != null) beforeUsers.push(t("packages.lineQuestions").replace("{{count}}", String(inc.questions_monthly)));
   const training = Number(inc.training_chars ?? 0);
   if (training > 0) {
     let line = t("packages.lineTraining").replace("{{size}}", formatTrainingCharsLabel(training));
@@ -118,26 +147,49 @@ export function planCardFeatureSections(entry: BillingCatalogEntry, t: (key: str
       : t("packages.lineUsersCount").replace("{{count}}", String(inc.max_users))
     : null;
   const trial = Number(inc.trial_days ?? 0);
-  const afterUsers = trial > 0 ? [t("packages.lineTrial").replace("{{count}}", String(trial))] : [];
+  const afterUsers =
+    trial > 0
+      ? [
+          entry.code === "free" && trial === 7
+            ? t("packages.lineTrialOneWeek")
+            : t("packages.lineTrial").replace("{{count}}", String(trial)),
+        ]
+      : [];
+  // Ne ismételje a megkeresésszámot / érvényességet a tagline-ban
   const translatedTagline = t(`packages.planTagline_${entry.code}`);
   const tagline =
-    translatedTagline !== `packages.planTagline_${entry.code}`
-      ? translatedTagline
-      : typeof meta.description === "string" && meta.description.trim()
-        ? meta.description.trim()
+    entry.code === "free"
+      ? null
+      : translatedTagline !== `packages.planTagline_${entry.code}` &&
+          !/megkeresés|inquir|consulta|SMS/i.test(translatedTagline)
+        ? translatedTagline
         : null;
   return { beforeUsers, usersLine, afterUsers, tagline };
 }
 
-export function paidPriceDisplay(plan: BillingCatalogEntry, period: string, t: (key: string) => string) {
+export function paidPriceDisplay(
+  plan: BillingCatalogEntry,
+  period: string,
+  t: (key: string) => string,
+  locale = "hu"
+) {
   const listM = Math.floor(Number(plan.price_cents) / 100);
   const effM = flooredMonthlyEuroAfterDiscount(plan.price_cents, period);
-  const monthEuro = period === "monthly" ? listM : effM;
-  if (period === "monthly") return { monthEuro, listPeriodEuro: null, subline: t("packages.billedMonthlyShort") };
+  const monthEuroRaw = period === "monthly" ? listM : effM;
+  const monthEuro = formatForintAmount(monthEuroRaw, locale);
+  if (period === "monthly") return { monthEuro, listPeriodEuro: null as string | null, subline: t("packages.billedMonthlyShort") };
   if (period === "quarterly") {
-    return { monthEuro, listPeriodEuro: listM * 3, subline: t("packages.billedQuarterly").replace("{{total}}", String(effM * 3)) };
+    return {
+      monthEuro,
+      listPeriodEuro: formatForintAmount(listM * 3, locale),
+      subline: t("packages.billedQuarterly").replace("{{total}}", formatForintAmount(effM * 3, locale)),
+    };
   }
-  return { monthEuro, listPeriodEuro: listM * 12, subline: t("packages.billedYearly").replace("{{total}}", String(effM * 12)) };
+  return {
+    monthEuro,
+    listPeriodEuro: formatForintAmount(listM * 12, locale),
+    subline: t("packages.billedYearly").replace("{{total}}", formatForintAmount(effM * 12, locale)),
+  };
 }
 
 export function isFreePlan(plan: BillingCatalogEntry): boolean {
@@ -157,7 +209,7 @@ export function paidCtaLabel(
   if (samePlanAndCycle) return t("packages.ctaActivePlan");
   if (isCurrent) return t("packages.ctaChangeCycle");
   if (planCode === "starter") return t("packages.ctaPickStarter");
-  if (planCode === "growth") return t("packages.ctaPickGrowth");
+  if (planCode === "pro") return t("packages.ctaPickPro");
   if (planCode === "business") return t("packages.ctaPickBusiness");
   return t("packages.ctaPickFallback");
 }

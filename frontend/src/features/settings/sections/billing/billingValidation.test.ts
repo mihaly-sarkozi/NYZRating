@@ -1,5 +1,5 @@
 // frontend/src/features/settings/sections/billing/billingValidation.test.ts
-// Feladat: Billing validációs szabályok tesztje company/private esetekre.
+// Feladat: Billing validációs szabályok tesztje (csak cég, HU adószám).
 // Sárközi Mihály - 2026.05.29
 
 import { describe, expect, it } from "vitest";
@@ -21,15 +21,20 @@ const baseForm: BillingFormState = {
 };
 
 describe("validateBillingForm", () => {
-  it("requires company name and tax id for company customer type", () => {
+  it("requires company name and tax id", () => {
     const errors = validateBillingForm(baseForm, t);
     expect(errors.companyName).toBe("settings.billingFieldRequired");
     expect(errors.taxId).toBe("settings.billingFieldRequired");
   });
 
-  it("requires full name for private customer type", () => {
-    const errors = validateBillingForm({ ...baseForm, customerType: "private", fullName: "", companyName: "", taxId: "" }, t);
-    expect(errors.fullName).toBe("settings.billingFieldRequired");
+  it("rejects invalid hungarian tax id", () => {
+    const errors = validateBillingForm({ ...baseForm, companyName: "Acme Kft", taxId: "12892312" }, t);
+    expect(errors.taxId).toBe("settings.billingInvalidTaxId");
+  });
+
+  it("accepts valid hungarian tax id", () => {
+    const errors = validateBillingForm({ ...baseForm, companyName: "Acme Kft", taxId: "12892312-1-42" }, t);
+    expect(errors.taxId).toBeUndefined();
     expect(errors.companyName).toBeUndefined();
   });
 });

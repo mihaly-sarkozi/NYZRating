@@ -2,7 +2,7 @@ import type { FrontendRole, FrontendUser } from "./moduleTypes";
 
 const rolePermissions: Record<string, Set<string>> = {
   owner: new Set(["*"]),
-  admin: new Set([
+    admin: new Set([
     "auth.login",
     "auth.refresh",
     "auth.logout",
@@ -13,6 +13,8 @@ const rolePermissions: Record<string, Set<string>> = {
     "settings.write",
     "domain.read",
     "domain.write",
+    "traffic.read",
+    "traffic.write",
   ]),
   user: new Set([
     "auth.login",

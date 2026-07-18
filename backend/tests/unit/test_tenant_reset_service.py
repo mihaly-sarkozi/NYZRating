@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -83,13 +83,11 @@ def test_reset_rejects_mismatched_confirm_slug() -> None:
 @patch.object(TenantResetService, "_purge_object_storage")
 @patch.object(TenantResetService, "_purge_public_tenant_data")
 @patch.object(TenantResetService, "_reset_billing_and_config")
-@patch.object(TenantResetService, "_ensure_default_knowledge_base")
 @patch.object(TenantResetService, "_restore_owner")
 @patch.object(TenantResetService, "_snapshot_owner_auth")
 def test_reset_runs_pipeline_when_slug_confirmed(
     snapshot_mock,
     restore_mock,
-    default_kb_mock,
     billing_mock,
     public_mock,
     storage_mock,
@@ -113,7 +111,6 @@ def test_reset_runs_pipeline_when_slug_confirmed(
     drop_mock.assert_called_once()
     upgrade_mock.assert_called_once()
     restore_mock.assert_called_once()
-    default_kb_mock.assert_called_once()
     billing_mock.assert_called_once()
     public_mock.assert_called_once_with(7)
     storage_mock.assert_called_once_with("acme")

@@ -48,7 +48,6 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
 
   const menuItems = [
     { path: "/platform-admin", label: "Áttekintés", end: true },
-    { path: "/platform-admin/statistics", label: "Statisztika" },
     { path: "/platform-admin/audit", label: "Audit napló" },
     { path: "/platform-admin/monitoring/security", label: "Monitoring" },
     { path: "/platform-admin/datum-szimulacio", label: "Dátum szimuláció" },
@@ -89,7 +88,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
               )}
             </button>
             <Link to="/platform-admin" onClick={() => setMenuOpen(false)} className="font-bold">
-              BrainBankCenter
+              NYZ Rating
             </Link>
             {menuOpen ? (
               <div className="absolute left-0 top-full mt-3 w-64 rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-2 shadow-xl">

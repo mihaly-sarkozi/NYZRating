@@ -34,6 +34,8 @@ from apps.billing.calculations import (
     plan_monthly_charge_cents_after_discount as _plan_monthly_charge_cents_after_discount,
     round_storage_gb as _round_storage_gb,
 )
+from apps.billing.constants import PAYMENT_FAILURE_DEACTIVATION_DAYS, PAYMENT_SETTLE_PATH
+from core.modules.tenant.helpers.tenant_frontend_url_helper import tenant_frontend_base_url_by_slug
 from apps.billing.debug_clock import BillingDebugClock
 from apps.billing.domain import BillingAddon, BillingPlan
 from apps.billing.models import (
@@ -56,6 +58,7 @@ from apps.billing.subscription_proration import (
     is_scheduled_change,
     paid_until_after_upgrade,
     proration_calendar_fraction,
+    questions_carryover_from_started_month,
     training_initial_fee_cents_for_plan,
 )
 from apps.billing.workflows import (
@@ -80,6 +83,7 @@ from apps.billing.schemas import (
     TenantStatisticsResponse,
 )
 from core.modules.users.models.user_orm import UserORM
+from core.kernel.deps.facade import get_service
 from core.kernel.interface.keys import PLATFORM_SETTINGS_SERVICE
 from core.kernel.config.config_loader import settings
 from core.modules.tenant.repositories import TenantRepository
@@ -151,6 +155,9 @@ class BillingService:
         description: str,
         metadata: dict[str, str] | None = None,
     ) -> PaymentExecutionResult:
+        # A platform admin „sikertelen fizetés” kapcsoló csak a dátumszimuláció
+        # automatikus ciklusára vonatkozik (simulate_open_invoice_payments),
+        # nem a tulajdonos kézi kiegyenlítésére / checkoutjára.
         return self._get_payment_gateway().execute_payment(
             amount_cents=amount_cents,
             description=description,
@@ -172,14 +179,72 @@ class BillingService:
         except Exception:
             logger.exception("Failed to load persisted simulated billing date during storage initialization")
 
-    def set_debug_simulated_date(self, value: date | None) -> BillingDebugDateResponse:
+    def set_debug_simulated_date(
+        self,
+        value: date | None,
+        *,
+        payment_outcome: str | None = None,
+    ) -> BillingDebugDateResponse:
+        if payment_outcome is not None:
+            try:
+                self._repo.set_debug_payment_simulation_outcome(payment_outcome)
+            except Exception:
+                logger.exception("Failed to persist payment simulation outcome")
         try:
             self._repo.set_debug_simulated_date(value)
         except Exception:
             logger.exception("Failed to persist simulated billing date")
         self.clock.set_simulated_date(value)
-        self.process_due_cycles()
+        # Esedékesség: díjbekérők kiállítása +napi fizetési próbák a beállított kimenettel.
+        self.process_cancellation_lifecycle()
+        self._cycle_processor.process()
+        if value is not None:
+            outcome = self._repo.get_debug_payment_simulation_outcome()
+            # Az aznapi esedékes / nyitott tartozásokat a beállítás szerint rendezzük.
+            self.simulate_open_invoice_payments(outcome=outcome)
+        else:
+            self.retry_failed_payments_daily()
         return self.get_debug_simulated_date()
+
+    def set_debug_sms_quota(self, *, tenant_id: int, sms_quota: int) -> dict[str, Any]:
+        """Platform debug: a megadott érték a tenant hátralévő SMS kerete lesz."""
+        remaining = int(sms_quota)
+        if remaining < 0:
+            raise ValueError("Az SMS keret nem lehet negatív.")
+        tenant_row = next((row for row in self._repo.list_all_tenants() if int(row.id) == int(tenant_id)), None)
+        if tenant_row is None:
+            raise ValueError("tenant_not_found")
+        tenant = self._tenant_repo.get_snapshot_by_slug(tenant_row.slug)
+        if tenant is None:
+            raise ValueError("tenant_not_found")
+        subscription = self.ensure_subscription(tenant)
+        plan = self._plan_map().get(subscription.plan_code) or self._plan_map()["free"]
+        monthly_included = int(plan.included_questions_monthly or 0)
+        # A Traffic UI SystemClock-ot használ; a hátralévő ehhez az időszakhoz igazodik.
+        period_key, _, _, _ = _current_month_period(SystemClock().now())
+        used_total = self._questions_used_in_period(int(tenant.tenant_id), period_key)
+        # remaining = available - used  =>  available = used + remaining
+        available_total = used_total + remaining
+        carryover = available_total - monthly_included
+        updated = self._upsert_subscription_from_existing(
+            int(tenant.tenant_id),
+            subscription,
+            carryover_addon_questions=carryover,
+        )
+        self._sync_tenant_config(tenant, updated)
+        final_available = monthly_included + int(updated.carryover_addon_questions or 0)
+        return {
+            "tenant_id": int(tenant.tenant_id),
+            "slug": str(tenant.slug),
+            "name": str(getattr(tenant_row, "name", None) or tenant.slug),
+            "sms_quota": remaining,
+            "plan_included": monthly_included,
+            "used_total": used_total,
+            "period_key": period_key,
+            "carryover_addon_questions": int(updated.carryover_addon_questions or 0),
+            "available_total": final_available,
+            "remaining_total": max(0, final_available - used_total),
+        }
 
     def get_debug_simulated_date(self) -> BillingDebugDateResponse:
         simulated = self.clock.simulated_date
@@ -190,10 +255,16 @@ class BillingService:
                 simulated = persisted
         except Exception:
             logger.exception("Failed to load persisted simulated billing date")
+        outcome = "success"
+        try:
+            outcome = self._repo.get_debug_payment_simulation_outcome()
+        except Exception:
+            logger.exception("Failed to load payment simulation outcome")
         return BillingDebugDateResponse(
             enabled=True,
             simulated_date=simulated.isoformat() if simulated is not None else None,
             current_date=self.clock.now().date().isoformat(),
+            payment_simulation_outcome=outcome,
         )
 
     @staticmethod
@@ -381,13 +452,60 @@ class BillingService:
                 "storage_gb_used_rounded": _round_storage_gb(storage_bytes),
             }
 
+    def _load_resource_counts_for_tenant(self, tenant_slug: str) -> dict[str, Any]:
+        """Tenant séma search_path mellett tölti a resource countokat (worker/debug cycle)."""
+        normalized_slug = (tenant_slug or "").strip().lower()
+        if not TENANT_SLUG_RE.fullmatch(normalized_slug):
+            return {
+                "users": 0,
+                "knowledge_bases": 0,
+                "storage_bytes": 0,
+                "storage_gb_used_rounded": 0,
+            }
+        with self._sf() as db:
+            try:
+                db.execute(text(f"SET search_path TO {self._quote_ident(normalized_slug)}, public"))
+                user_count = db.query(UserORM).filter(UserORM.deleted_at.is_(None)).count()
+                schema = db.execute(text("select current_schema()")).scalar_one()
+                has_kb_table = table_exists(db, schema=schema, table_name="knowledge_bases")
+                has_deleted_at = has_kb_table and column_exists(
+                    db, schema=schema, table_name="knowledge_bases", column_name="deleted_at"
+                )
+                kb_where = "WHERE deleted_at IS NULL" if has_deleted_at else ""
+                kb_count = (
+                    db.execute(text(f"SELECT COUNT(*) FROM knowledge_bases {kb_where}")).scalar() or 0
+                    if has_kb_table
+                    else 0
+                )
+                ingest_usage = query_tenant_ingest_usage(db)
+                storage_bytes = int(ingest_usage.get("storage_bytes") or 0)
+                return {
+                    "users": int(user_count or 0),
+                    "knowledge_bases": int(kb_count or 0),
+                    "storage_bytes": storage_bytes,
+                    "storage_gb_used_rounded": _round_storage_gb(storage_bytes),
+                }
+            except Exception:
+                logger.exception("Failed to load resource counts for tenant slug=%s", normalized_slug)
+                return {
+                    "users": 0,
+                    "knowledge_bases": 0,
+                    "storage_bytes": 0,
+                    "storage_gb_used_rounded": 0,
+                }
+            finally:
+                try:
+                    db.execute(text("SET search_path TO public"))
+                except Exception:
+                    pass
+
     def _current_period(self) -> tuple[str, datetime, datetime, date]:
         return _current_month_period(self.clock.now())
 
     def _question_usage_summary(self, tenant_id: int, subscription: BillingSubscriptionORM) -> tuple[dict[str, Any], list[BillingUserQuestionUsageResponse]]:
         period_key, _, _, _ = self._current_period()
         usage_rows = self._repo.list_question_usage(tenant_id, period_key)
-        used_total = sum(int(row.question_count or 0) for row in usage_rows)
+        used_total = self._questions_used_in_current_period(tenant_id)
         plan = self._plan_map().get(subscription.plan_code) or self._plan_map()["free"]
         monthly_included = int(plan.included_questions_monthly or 0)
         addon_carryover = int(subscription.carryover_addon_questions or 0)
@@ -529,15 +647,38 @@ class BillingService:
             return anchor_due_date
         return fallback_date
 
+    def _subscription_coverage_window(
+        self,
+        tenant_id: int,
+        subscription: BillingSubscriptionORM,
+        *,
+        fallback_start: date,
+        fallback_end: date,
+    ) -> tuple[date, date]:
+        """Fizetős csomagnál a ciklus a váltás/vásárlás napjától tart, nem a naptári 5. munkanaptól."""
+
+        coverage_end = self._subscription_due_date(tenant_id, subscription, fallback_end)
+        plan_code = str(subscription.plan_code or "free").strip().lower()
+        if plan_code != "free" and subscription.trial_ends_at is not None:
+            months = _billing_period_multiplier(subscription.billing_period)
+            coverage_start = _add_months_to_date(coverage_end, -months)
+            return coverage_start, coverage_end
+        if plan_code == "free" and subscription.trial_started_at is not None:
+            return subscription.trial_started_at.date(), coverage_end
+        return fallback_start, coverage_end
+
     def _estimate_next_invoice(
         self,
         subscription: BillingSubscriptionORM,
         resources: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        plan = self._plan_map().get(subscription.plan_code) or self._plan_map()["free"]
+        # Ha van ütemezett visszalépés, a következő díjbekérő már az új csomagot mutatja.
+        plan_code = str(subscription.scheduled_plan_code or subscription.plan_code or "free")
+        billing_period = str(subscription.scheduled_billing_period or subscription.billing_period or "monthly")
+        plan = self._plan_map().get(plan_code) or self._plan_map()["free"]
         _, _, period_end_dt, _ = self._current_period()
-        period_multiplier = _billing_period_multiplier(subscription.billing_period)
-        base_monthly_cents = _plan_monthly_charge_cents_after_discount(plan.price_cents, subscription.billing_period)
+        period_multiplier = _billing_period_multiplier(billing_period)
+        base_monthly_cents = _plan_monthly_charge_cents_after_discount(plan.price_cents, billing_period)
         next_extra_storage_gb = self._required_extra_storage_gb(subscription, resources)
         recurring_addons_monthly_cents = (int(subscription.extra_kb_count or 0) * 500) + (next_extra_storage_gb * 500)
         base_cents = base_monthly_cents * period_multiplier
@@ -546,7 +687,7 @@ class BillingService:
         due_at = self._subscription_due_date(int(subscription.tenant_id), subscription, period_end_dt.date())
         return {
             "currency": DEFAULT_CURRENCY,
-            "discount_percent": _discount_percent(subscription.billing_period),
+            "discount_percent": _discount_percent(billing_period),
             "period_multiplier": period_multiplier,
             "base_plan_cents": base_cents,
             "recurring_addons_cents": recurring_addons_cents,
@@ -555,6 +696,8 @@ class BillingService:
             "due_at_iso": due_at.isoformat(),
             "total_cents": total_cents,
             "total": _money(total_cents),
+            "plan_code": plan_code,
+            "billing_period": billing_period,
         }
 
     @staticmethod
@@ -590,9 +733,12 @@ class BillingService:
         return {
             "status": "payment_failed",
             "failed_at_iso": failed.issued_at.date().isoformat() if failed.issued_at else None,
-            "grace_until_iso": (due_at.date() + timedelta(days=7)).isoformat(),
-            "is_expired": self.clock.now().date() > (due_at.date() + timedelta(days=7)),
-            "message": "Nem volt sikeres a fizetés. A szolgáltatás korlátozott módban érhető el, és 7 nap után nem lesz elérhető.",
+            "grace_until_iso": (due_at.date() + timedelta(days=PAYMENT_FAILURE_DEACTIVATION_DAYS)).isoformat(),
+            "is_expired": self.clock.now().date() > (due_at.date() + timedelta(days=PAYMENT_FAILURE_DEACTIVATION_DAYS)),
+            "message": (
+                f"Nem volt sikeres a fizetés. A szolgáltatás korlátozott módban érhető el, "
+                f"és {PAYMENT_FAILURE_DEACTIVATION_DAYS} nap után nem lesz elérhető."
+            ),
         }
 
     def _billing_payment_notice(self, tenant_id: int, subscription: BillingSubscriptionORM) -> dict[str, Any] | None:
@@ -612,13 +758,16 @@ class BillingService:
         today = self.clock.now().date()
         if today <= due_date:
             return None
-        unavailable_after = due_date + timedelta(days=7)
+        unavailable_after = due_date + timedelta(days=PAYMENT_FAILURE_DEACTIVATION_DAYS)
         return {
             "status": "payment_overdue",
             "failed_at_iso": due_date.isoformat(),
             "grace_until_iso": unavailable_after.isoformat(),
             "is_expired": today > unavailable_after,
-            "message": "A számla esedékessége lejárt. A szolgáltatás korlátozott módban érhető el, és 7 nap után nem lesz elérhető.",
+            "message": (
+                f"A számla esedékessége lejárt. A szolgáltatás korlátozott módban érhető el, "
+                f"és {PAYMENT_FAILURE_DEACTIVATION_DAYS} nap után nem lesz elérhető."
+            ),
         }
 
     def get_overview(self, tenant) -> BillingOverviewResponse:
@@ -633,7 +782,12 @@ class BillingService:
         limits = self._build_limits(subscription)
         invoices = [self._invoice_to_response(row) for row in self._repo.list_recent_invoices(tenant.tenant_id)]
         period_key, period_start_dt, period_end_dt, _ = self._current_period()
-        paid_until_date = self._subscription_due_date(tenant.tenant_id, subscription, period_end_dt.date())
+        coverage_start, coverage_end = self._subscription_coverage_window(
+            tenant.tenant_id,
+            subscription,
+            fallback_start=period_start_dt.date(),
+            fallback_end=period_end_dt.date(),
+        )
         snapshot = self._tenant_repo.get_snapshot_by_slug(tenant.slug) if tenant.slug else None
         demo_mode = bool(snapshot and snapshot.config and snapshot.config.feature_flags and bool(snapshot.config.feature_flags.get("demo_mode")))
         cancellation = self._repo.get_latest_cancellation_request(tenant.tenant_id)
@@ -650,8 +804,8 @@ class BillingService:
             }
         return BillingOverviewResponse(
             current_period_key=period_key,
-            current_period_start_iso=period_start_dt.date().isoformat(),
-            current_period_end_iso=paid_until_date.isoformat(),
+            current_period_start_iso=coverage_start.isoformat(),
+            current_period_end_iso=coverage_end.isoformat(),
             catalog=self._catalog_response(),
             subscription={
                 "plan_code": subscription.plan_code,
@@ -1132,15 +1286,30 @@ class BillingService:
             },
         )
 
+    def has_unpaid_subscription_debt(self, tenant_id: int) -> bool:
+        debt = self._repo.get_latest_unpaid_debt_invoice(int(tenant_id))
+        return debt is not None and str(getattr(debt, "status", "") or "") in {"issued", "payment_failed"}
+
     def get_access_status(self, tenant) -> BillingAccessStatusResponse:
         subscription = self.ensure_subscription(tenant)
-        self.process_due_cycles()
-        subscription = self.ensure_subscription(tenant)
-        subscription = self._restriction_use_case.sync_status(tenant, subscription)
-        self._sync_tenant_config(tenant, subscription)
+        # Inaktív recovery módban ne futtassuk a teljes due cycle-t (újra deaktiválna).
+        tenant_active = bool(getattr(tenant, "is_active", True))
+        if tenant_active:
+            self.process_due_cycles()
+            subscription = self.ensure_subscription(tenant)
+            subscription = self._restriction_use_case.sync_status(tenant, subscription)
+            self._sync_tenant_config(tenant, subscription)
+        has_debt = self.has_unpaid_subscription_debt(int(tenant.tenant_id))
+        restricted = str(subscription.status or "") == SubscriptionStatus.RESTRICTED.value
+        recovery_mode = (not tenant_active) and has_debt
+        billing_lock = has_debt or restricted or recovery_mode
         return BillingAccessStatusResponse(
-            restricted=subscription.status == SubscriptionStatus.RESTRICTED.value,
+            restricted=restricted or recovery_mode,
             payment_warning=self._billing_payment_notice(tenant.tenant_id, subscription),
+            tenant_active=tenant_active,
+            billing_lock=billing_lock,
+            recovery_mode=recovery_mode,
+            redirect_path="/admin/szamlak/kiegyenlites" if billing_lock else "/admin/szamlak",
         )
 
     def _billing_profile_snapshot(self) -> dict[str, str]:
@@ -1159,7 +1328,23 @@ class BillingService:
                 "billing_country": str(snapshot.get("billing_country") or ""),
             }
         except Exception:
+            logger.exception("Billing profil olvasása sikertelen")
             return {}
+
+    def _require_billing_profile_for_paid_checkout(self) -> None:
+        """Első fizetős csomagnál a cégadatoknak mentve kell lenniük a számlázáshoz."""
+        from apps.settings.domain.hu_tax_id import is_valid_hu_tax_id
+
+        profile = self._billing_profile_snapshot()
+        company = str(profile.get("billing_company_name") or "").strip()
+        tax_id = str(profile.get("billing_tax_id") or "").strip()
+        address = str(profile.get("billing_address_line") or "").strip()
+        postal = str(profile.get("billing_postal_code") or "").strip()
+        city = str(profile.get("billing_city") or "").strip()
+        if not company or not tax_id or not address or not postal or not city:
+            raise ValueError("Az első csomag megvásárlásához add meg és mentsd el a cégadatokat.")
+        if not is_valid_hu_tax_id(tax_id):
+            raise ValueError("Érvénytelen adószám. Add meg a teljes 11 jegyű magyar adószámot (pl. 12892312-1-42).")
 
     @staticmethod
     def _money_label(cents: int) -> str:
@@ -1169,6 +1354,11 @@ class BillingService:
         invoice = self._repo.get_invoice_by_id(tenant.tenant_id, invoice_id)
         if invoice is None:
             raise ValueError("Számla nem található.")
+        status = str(getattr(invoice, "status", "") or "").strip().lower()
+        if status not in {"paid", "simulated_paid", "manual_paid"}:
+            raise PermissionError("A számla csak fizetés után tölthető le.")
+        if int(getattr(invoice, "total_cents", 0) or 0) <= 0:
+            raise PermissionError("A számla csak fizetés után tölthető le.")
         issuer = {
             "name": settings.invoice_issuer_name,
             "tax_id": settings.invoice_issuer_tax_id,
@@ -1227,6 +1417,39 @@ class BillingService:
             today=self.clock.now().date(),
         )
 
+    def _questions_used_in_current_period(self, tenant_id: int) -> int:
+        period_key, _, _, _ = self._current_period()
+        return self._questions_used_in_period(tenant_id, period_key)
+
+    def _questions_used_in_period(self, tenant_id: int, period_key: str) -> int:
+        with self._sf() as db:
+            db.execute(text("SET search_path TO public"))
+            row = db.execute(
+                text(
+                    """
+                    SELECT question_count
+                    FROM public.traffic_question_usage_totals
+                    WHERE tenant_id = :tenant_id AND period_key = :period_key
+                    LIMIT 1
+                    """
+                ),
+                {"tenant_id": tenant_id, "period_key": period_key},
+            ).mappings().first()
+            if row is not None:
+                return max(0, int(row.get("question_count") or 0))
+        usage_rows = self._repo.list_question_usage(tenant_id, period_key)
+        return sum(int(row.question_count or 0) for row in usage_rows)
+
+    def _sms_carryover_from_started_month(self, subscription: BillingSubscriptionORM) -> int:
+        """A régi csomag megkezdett hónapjából fennmaradó SMS keretet számolja ki."""
+
+        current_plan = self._plan_map().get(subscription.plan_code) or self._plan_map()["free"]
+        used_total = self._questions_used_in_current_period(int(subscription.tenant_id))
+        return questions_carryover_from_started_month(
+            old_plan_questions_monthly=int(current_plan.included_questions_monthly or 0),
+            used_total=used_total,
+        )
+
     def _apply_immediate_plan_change(
         self,
         tenant,
@@ -1239,6 +1462,11 @@ class BillingService:
         plans = self._plan_map()
         next_plan = plans[normalized_plan]
         carryover_training_chars = max(int(subscription.carryover_training_chars or 0), int(next_plan.included_training_chars or 0))
+        # Felfelé váltáskor: aktuális hónap csomag-SMS maradéka + megmaradt extra SMS.
+        usage, _ = self._question_usage_summary(tenant.tenant_id, subscription)
+        remaining_addons = int(usage.get("remaining_addons") or 0)
+        sms_from_started_month = self._sms_carryover_from_started_month(subscription)
+        carryover_addon_questions = remaining_addons + sms_from_started_month
         updated = self._upsert_subscription_from_existing(
             tenant.tenant_id,
             subscription,
@@ -1248,6 +1476,7 @@ class BillingService:
             trial_started_at=subscription.trial_started_at if normalized_plan == "free" else None,
             trial_ends_at=subscription.trial_ends_at if normalized_plan == "free" else paid_until,
             carryover_training_chars=carryover_training_chars,
+            carryover_addon_questions=carryover_addon_questions,
             scheduled_plan_code=None,
             scheduled_billing_period=None,
             scheduled_change_effective_period=None,
@@ -1264,6 +1493,12 @@ class BillingService:
         raw = self._compute_upgrade_proration(subscription, normalized_plan, normalized_period)
         if raw is None:
             raise ValueError("Ez a váltás nem kezelhető előnézetként (pl. csomagcsökkentés vagy nincs változás).")
+        usage, _ = self._question_usage_summary(tenant.tenant_id, subscription)
+        sms_carryover = self._sms_carryover_from_started_month(subscription) + int(usage.get("remaining_addons") or 0)
+        raw = {
+            **raw,
+            "sms_carryover_from_old_plan": sms_carryover,
+        }
         return BillingUpgradePreviewResponse(**raw)
 
     @staticmethod
@@ -1353,12 +1588,17 @@ class BillingService:
         total_charge = int(metadata.get("amount_cents") or payload.get("amount_cents") or preview["total_charge_cents"])
         period_key = f"pe{int(event.id):014d}"[:16]
         if self._repo.get_invoice(tenant_id, "plan_upgrade", period_key) is None:
+            period_multiplier = self._billing_period_multiplier(target_period)
+            unit_price_cents = int(preview.get("new_monthly_cents") or 0)
             lines: list[dict[str, Any]] = [
                 {
                     "code": "upgrade_new_period",
                     "name": f"Új csomag teljes díja ({self._billing_period_label(target_period)})",
                     "target_plan_code": target_plan,
                     "billing_period": target_period,
+                    "period_multiplier": period_multiplier,
+                    "unit_price_cents": unit_price_cents,
+                    "quantity": period_multiplier,
                     "total_cents": int(preview.get("next_period_charge_cents") or total_charge),
                     "paid_until_iso": paid_until.isoformat(),
                     "payment_provider": normalized_provider,
@@ -1367,6 +1607,7 @@ class BillingService:
                 {
                     "code": "upgrade_old_period_credit",
                     "name": "Régi díjrész jóváírása",
+                    "quantity": 1,
                     "total_cents": -int(preview.get("old_remaining_credit_cents") or 0),
                 },
             ]
@@ -1442,12 +1683,17 @@ class BillingService:
             next_plan = self._plan_map()[normalized_plan]
             period_key = f"{issued_at:%Y%m%d%H%M%S%f}"[:16]
             if self._repo.get_invoice(tenant.tenant_id, "plan_upgrade", period_key) is None:
+                period_multiplier = self._billing_period_multiplier(normalized_period)
+                unit_price_cents = int(preview.get("new_monthly_cents") or 0)
                 lines: list[dict[str, Any]] = [
                     {
                         "code": "upgrade_new_period",
                         "name": f"Új csomag teljes díja ({self._billing_period_label(normalized_period)})",
                         "target_plan_code": normalized_plan,
                         "billing_period": normalized_period,
+                        "period_multiplier": period_multiplier,
+                        "unit_price_cents": unit_price_cents,
+                        "quantity": period_multiplier,
                         "total_cents": next_period_charge,
                         "paid_until_iso": paid_until.isoformat(),
                         "simulated_payment": True,
@@ -1457,6 +1703,7 @@ class BillingService:
                     {
                         "code": "upgrade_old_period_credit",
                         "name": "Régi díjrész jóváírása",
+                        "quantity": 1,
                         "total_cents": -old_remaining_credit,
                     },
                 ]
@@ -1507,6 +1754,50 @@ class BillingService:
             paid_until_iso=paid_until.isoformat(),
         )
 
+    def apply_due_scheduled_plan_change(self, tenant, subscription: BillingSubscriptionORM) -> BillingSubscriptionORM:
+        """Ütemezett csomagváltás alkalmazása a fizetett periódus végén, számlázás előtt."""
+        scheduled_plan = getattr(subscription, "scheduled_plan_code", None)
+        if not scheduled_plan:
+            return subscription
+        now = self.clock.now().date()
+        _, _, period_end_dt, _ = self._current_period()
+        billing_due = self._billing_due_date(subscription, period_end_dt.date())
+        if now < billing_due:
+            return subscription
+        effective = str(getattr(subscription, "scheduled_change_effective_period", "") or "").strip()
+        if effective:
+            if len(effective) >= 10 and effective[4] == "-" and effective[7] == "-":
+                try:
+                    if now < date.fromisoformat(effective[:10]):
+                        return subscription
+                except ValueError:
+                    pass
+            elif len(effective) == 7 and effective[4] == "-":
+                # Legacy naptári YYYY-MM: csak ha már elértük azt a hónapot.
+                try:
+                    year, month = int(effective[:4]), int(effective[5:7])
+                    if now < date(year, month, 1):
+                        return subscription
+                except ValueError:
+                    pass
+        new_period = subscription.scheduled_billing_period or subscription.billing_period
+        is_free = str(scheduled_plan).strip().lower() == "free"
+        return self._upsert_subscription_from_existing(
+            tenant.tenant_id,
+            subscription,
+            plan_code=scheduled_plan,
+            billing_period=new_period,
+            status=SubscriptionStatus.TRIAL.value if is_free else SubscriptionStatus.ACTIVE.value,
+            trial_started_at=subscription.trial_started_at if is_free else None,
+            # A fizetett periódus végét megtartjuk, hogy az aznapi díjbekérő az ÚJ csomagra menjen ki.
+            trial_ends_at=subscription.trial_ends_at,
+            scheduled_plan_code=None,
+            scheduled_billing_period=None,
+            scheduled_change_effective_period=None,
+            question_warning_period_key=None,
+            question_warning_level=0,
+        )
+
     def update_subscription(self, tenant, *, plan_code: str, billing_period: str) -> dict[str, Any]:
         plans = self._plan_map()
         normalized_plan = (plan_code or "").strip().lower()
@@ -1515,7 +1806,9 @@ class BillingService:
         normalized_period = self._normalize_billing_period(billing_period)
         subscription = self.ensure_subscription(tenant)
         _, _, period_end_dt, _ = self._current_period()
-        effective_period_key = f"{period_end_dt.year:04d}-{period_end_dt.month:02d}"
+        paid_until = self._subscription_due_date(tenant.tenant_id, subscription, period_end_dt.date())
+        # A váltás a kifizetett időszak végén (következő számlázási napon) lép életbe.
+        effective_period_key = paid_until.isoformat()
         if self._is_scheduled_change(subscription, normalized_plan, normalized_period):
             updated = self._upsert_subscription_from_existing(
                 tenant.tenant_id,
@@ -1530,6 +1823,8 @@ class BillingService:
                 "message": "A visszalépés a kifizetett számlázási időszak után lép életbe. A már kifizetett időszak díját nem térítjük vissza.",
             }
         was_free_checkout = subscription.plan_code == "free" and normalized_plan != "free"
+        if was_free_checkout:
+            self._require_billing_profile_for_paid_checkout()
         paid_until = self._paid_until_after_upgrade(self.clock.now().date(), normalized_period) if was_free_checkout else None
         self._apply_immediate_plan_change(
             tenant,
@@ -1555,7 +1850,7 @@ class BillingService:
                         "billing_period": normalized_period,
                         "period_multiplier": period_multiplier,
                         "unit_price_cents": unit_price_cents,
-                        "quantity": 1,
+                        "quantity": period_multiplier,
                         "total_cents": plan_total_cents,
                         "paid_until_iso": paid_until.isoformat() if paid_until is not None else None,
                         "simulated_payment": self._is_simulated_provider(),
@@ -1606,23 +1901,8 @@ class BillingService:
                 billing_date=billing_date.isoformat(),
             )
         current_period_key, _, _, _ = self._current_period()
-        if subscription.scheduled_plan_code and subscription.scheduled_change_effective_period == current_period_key:
-            subscription = self._upsert_subscription_from_existing(
-                tenant.tenant_id,
-                subscription,
-                plan_code=subscription.scheduled_plan_code,
-                billing_period=subscription.scheduled_billing_period or subscription.billing_period,
-                status=SubscriptionStatus.ACTIVE.value
-                if subscription.scheduled_plan_code != "free"
-                else SubscriptionStatus.TRIAL.value,
-                trial_started_at=subscription.trial_started_at if subscription.scheduled_plan_code == "free" else None,
-                trial_ends_at=subscription.trial_ends_at if subscription.scheduled_plan_code == "free" else None,
-                scheduled_plan_code=None,
-                scheduled_billing_period=None,
-                scheduled_change_effective_period=None,
-                question_warning_period_key=None,
-                question_warning_level=0,
-            )
+        _ = current_period_key
+        subscription = self.apply_due_scheduled_plan_change(tenant, subscription)
         period_key = self._subscription_period_key(billing_date)
         if force_new_invoice:
             period_key = f"{now:%Y%m%d%H%M%S%f}"[:16]
@@ -1632,6 +1912,16 @@ class BillingService:
         total_cents = int(estimated["total_cents"] or 0)
         next_extra_storage_gb = int(estimated.get("next_extra_storage_gb") or 0)
         if outcome == "success":
+            open_request = None if force_new_invoice else self._repo.get_latest_open_subscription_invoice(tenant.tenant_id)
+            if open_request is not None:
+                self._settle_debt_invoice_as_paid(tenant, subscription, open_request)
+                next_billing_date = self._next_billing_date_after(billing_date, subscription.billing_period)
+                return BillingDebugBillingRunResponse(
+                    status="paid",
+                    message="Sikeres számlázás (díjbekérő kiegyenlítve).",
+                    billing_date=billing_date.isoformat(),
+                    next_billing_date=next_billing_date.isoformat(),
+                )
             failed_to_settle = None if force_new_invoice else self._repo.get_latest_invoice_for_type(tenant.tenant_id, "monthly_subscription_failed")
             if failed_to_settle is not None and failed_to_settle.status == "payment_failed":
                 paid = self._repo.get_latest_invoice_for_type(tenant.tenant_id, "monthly_subscription")
@@ -1646,6 +1936,10 @@ class BillingService:
             existing = None if force_new_invoice else self._repo.get_invoice(tenant.tenant_id, "monthly_subscription", period_key)
             next_billing_date = self._next_billing_date_after(billing_date, subscription.billing_period)
             if existing is None:
+                period_multiplier = self._billing_period_multiplier(subscription.billing_period)
+                unit_price_cents = self._plan_monthly_charge_after_discount(
+                    plan.price_cents, subscription.billing_period
+                )
                 self._repo.create_invoice(
                     tenant.tenant_id,
                     invoice_type="monthly_subscription",
@@ -1658,10 +1952,9 @@ class BillingService:
                             "code": plan.code,
                             "name": plan.name,
                             "billing_period": subscription.billing_period,
-                            "period_multiplier": self._billing_period_multiplier(subscription.billing_period),
-                            "unit_price_cents": self._plan_monthly_charge_after_discount(
-                                plan.price_cents, subscription.billing_period
-                            ),
+                            "period_multiplier": period_multiplier,
+                            "unit_price_cents": unit_price_cents,
+                            "quantity": period_multiplier,
                             "extra_kb_count": int(subscription.extra_kb_count or 0),
                             "extra_storage_gb": next_extra_storage_gb,
                             "total_cents": total_cents,
@@ -1688,6 +1981,14 @@ class BillingService:
                 question_warning_period_key=None,
                 question_warning_level=0,
             )
+            if not bool(getattr(tenant, "is_active", True)):
+                try:
+                    self._tenant_repo.activate(int(tenant.tenant_id), updated_by=None)
+                except Exception:
+                    logger.exception(
+                        "Failed to reactivate tenant_id=%s after subscription billing",
+                        getattr(tenant, "tenant_id", None),
+                    )
             return BillingDebugBillingRunResponse(
                 status="paid",
                 message="Sikeres számlázás.",
@@ -1711,6 +2012,10 @@ class BillingService:
                     previous_due_date = self._date_from_invoice_value(previous_failed.due_at)
             restriction_due_date = previous_due_date or billing_date
             if existing_failed is None:
+                period_multiplier = self._billing_period_multiplier(subscription.billing_period)
+                unit_price_cents = self._plan_monthly_charge_after_discount(
+                    plan.price_cents, subscription.billing_period
+                )
                 self._repo.create_invoice(
                     tenant.tenant_id,
                     invoice_type="monthly_subscription_failed",
@@ -1723,6 +2028,9 @@ class BillingService:
                             "code": plan.code,
                             "name": plan.name,
                             "billing_period": subscription.billing_period,
+                            "period_multiplier": period_multiplier,
+                            "unit_price_cents": unit_price_cents,
+                            "quantity": period_multiplier,
                             "extra_storage_gb": next_extra_storage_gb,
                             "total_cents": total_cents,
                             "payment_failed": True,
@@ -1736,13 +2044,65 @@ class BillingService:
                 status="payment_failed",
                 message="Sikertelen fizetés rögzítve.",
                 billing_date=billing_date.isoformat(),
-                grace_until=(restriction_due_date + timedelta(days=7)).isoformat(),
+                grace_until=(restriction_due_date + timedelta(days=PAYMENT_FAILURE_DEACTIVATION_DAYS)).isoformat(),
             )
         raise ValueError("Ismeretlen számlázási kimenet.")
 
     def settle_subscription(self, tenant) -> BillingDebugBillingRunResponse:
         subscription = self.ensure_subscription(tenant)
-        resources = self._load_resource_counts()
+        debt = self._repo.get_latest_unpaid_debt_invoice(int(tenant.tenant_id))
+        if debt is not None:
+            total_cents = int(getattr(debt, "total_cents", 0) or 0)
+            payment = self._execute_payment(
+                amount_cents=total_cents,
+                description=f"Tartozás rendezése: {subscription.plan_code}",
+                metadata={
+                    "tenant_slug": str(getattr(tenant, "slug", "") or ""),
+                    "flow": "subscription_settle",
+                    "invoice_id": str(int(debt.id)),
+                    "plan": str(subscription.plan_code),
+                    "billing_period": str(subscription.billing_period),
+                },
+            )
+            _, _, period_end_dt, _ = self._current_period()
+            billing_date = self._billing_due_date(subscription, period_end_dt.date())
+            if payment.success:
+                self._settle_debt_invoice_as_paid(tenant, subscription, debt)
+                next_billing_date = self._next_billing_date_after(billing_date, subscription.billing_period)
+                message = "Sikeres tartozás-rendezés."
+                if payment.external_id:
+                    message = f"{message} Tranzakció: {payment.external_id}"
+                return BillingDebugBillingRunResponse(
+                    status="paid",
+                    message=message,
+                    billing_date=billing_date.isoformat(),
+                    next_billing_date=next_billing_date.isoformat(),
+                )
+            # Sikertelen kézi kiegyenlítés: díjbekérőből / meglévő tartozásból payment_failed.
+            target_type = (
+                "monthly_subscription_failed"
+                if self._repo.get_invoice(
+                    int(tenant.tenant_id),
+                    "monthly_subscription_failed",
+                    str(getattr(debt, "period_key", "") or ""),
+                )
+                is None
+                else None
+            )
+            self._repo.update_invoice_payment_status(
+                int(debt.id),
+                status="payment_failed",
+                payment_method="settle_failed",
+                invoice_type=target_type,
+            )
+            self._restriction_use_case.sync_status(tenant, subscription)
+            return BillingDebugBillingRunResponse(
+                status="payment_failed",
+                message=payment.message or "A fizetés nem sikerült.",
+                billing_date=billing_date.isoformat(),
+                grace_until=(billing_date + timedelta(days=PAYMENT_FAILURE_DEACTIVATION_DAYS)).isoformat(),
+            )
+        resources = self._load_resource_counts_for_tenant(str(getattr(tenant, "slug", "") or ""))
         estimated = self._estimate_next_invoice(subscription, resources)
         total_cents = int(estimated.get("total_cents") or 0)
         payment = self._execute_payment(
@@ -1945,9 +2305,300 @@ class BillingService:
 
     def process_due_cycles(self) -> None:
         self.process_cancellation_lifecycle()
-        if isinstance(self.clock, BillingDebugClock) and self.clock.simulated_date is not None:
-            return
         self._cycle_processor.process()
+        self.retry_failed_payments_daily()
+
+    @staticmethod
+    def _invoice_lines_as_list(invoice: BillingInvoiceORM) -> list[dict[str, Any]]:
+        raw = getattr(invoice, "lines", None) or []
+        if not isinstance(raw, list):
+            return []
+        return [dict(item) for item in raw if isinstance(item, dict)]
+
+    @staticmethod
+    def _invoice_meta_date(invoice: BillingInvoiceORM, key: str) -> str | None:
+        for line in BillingService._invoice_lines_as_list(invoice):
+            value = line.get(key)
+            if value:
+                return str(value)
+        return None
+
+    def _mark_invoice_retry_meta(self, invoice: BillingInvoiceORM, *, today_iso: str, email_sent: bool) -> None:
+        lines = self._invoice_lines_as_list(invoice)
+        meta = {
+            "auto_retry_date": today_iso,
+            "auto_retry_email_sent": email_sent,
+        }
+        if lines:
+            lines[0] = {**lines[0], **meta}
+        else:
+            lines = [meta]
+        self._repo.update_invoice_payment_status(int(invoice.id), status=str(invoice.status), lines=lines)
+
+    def _settle_debt_invoice_as_paid(self, tenant, subscription: BillingSubscriptionORM, invoice: BillingInvoiceORM) -> None:
+        self._repo.update_invoice_payment_status(
+            int(invoice.id),
+            status=self._invoice_paid_status(),
+            payment_method=self._invoice_payment_method(),
+            invoice_type="monthly_subscription",
+        )
+        _, _, period_end_dt, _ = self._current_period()
+        billing_date = self._billing_due_date(subscription, period_end_dt.date())
+        next_billing_date = self._next_billing_date_after(billing_date, subscription.billing_period)
+        estimated = self._estimate_next_invoice(
+            subscription, self._load_resource_counts_for_tenant(str(getattr(tenant, "slug", "") or ""))
+        )
+        next_extra_storage_gb = int(estimated.get("next_extra_storage_gb") or 0)
+        self._upsert_subscription_from_existing(
+            tenant.tenant_id,
+            subscription,
+            plan_code=subscription.scheduled_plan_code or subscription.plan_code,
+            billing_period=subscription.scheduled_billing_period or subscription.billing_period,
+            status=SubscriptionStatus.ACTIVE.value,
+            trial_started_at=None,
+            trial_ends_at=datetime.combine(next_billing_date, datetime.min.time(), tzinfo=UTC),
+            extra_storage_gb=next_extra_storage_gb,
+            scheduled_plan_code=None,
+            scheduled_billing_period=None,
+            scheduled_change_effective_period=None,
+            question_warning_period_key=None,
+            question_warning_level=0,
+        )
+        if not bool(getattr(tenant, "is_active", True)):
+            try:
+                self._tenant_repo.activate(int(tenant.tenant_id), updated_by=None)
+            except Exception:
+                logger.exception("Failed to reactivate tenant_id=%s after debt settlement", getattr(tenant, "tenant_id", None))
+        self._restriction_use_case.sync_status(tenant, self.ensure_subscription(tenant))
+
+    def _payment_settle_url(self, tenant) -> str:
+        slug = str(getattr(tenant, "slug", "") or "").strip()
+        base = tenant_frontend_base_url_by_slug(slug).rstrip("/")
+        return f"{base}{PAYMENT_SETTLE_PATH}"
+
+    def _send_payment_failed_owner_email(self, tenant, invoice: BillingInvoiceORM) -> bool:
+        owner_email = self._owner_email_for_tenant_slug(str(getattr(tenant, "slug", "") or ""))
+        if not owner_email:
+            return False
+        amount = self._money_label(int(getattr(invoice, "total_cents", 0) or 0))
+        due = getattr(invoice, "due_at", None)
+        due_label = due.date().isoformat() if due is not None else "-"
+        deactivate_on = "-"
+        if due is not None:
+            deactivate_on = (due.date() + timedelta(days=PAYMENT_FAILURE_DEACTIVATION_DAYS)).isoformat()
+        settle_url = self._payment_settle_url(tenant)
+        subject = "Sikertelen előfizetés-fizetés – NYZ Rating"
+        body = (
+            f"Nem sikerült automatikusan kiegyenlíteni az előfizetés díját ({amount}).\n\n"
+            f"Tenant: {getattr(tenant, 'slug', '')}\n"
+            f"Esedékesség: {due_label}\n"
+            f"A szolgáltatás {PAYMENT_FAILURE_DEACTIVATION_DAYS} nap után inaktívvá válik, ha a tartozás fennmarad "
+            f"(várható inaktiválás: {deactivate_on}).\n\n"
+            "A tartozást itt tudod rendezni:\n"
+            f"{settle_url}\n"
+        )
+        return bool(self._email_service.send_email(owner_email, subject, body))
+
+    def retry_failed_payments_daily(self) -> dict[str, int]:
+        """Tartozás esetén naponta megpróbálja a fizetést; sikertelenül emailt küld a tulajdonosnak."""
+        today = self.clock.now().date()
+        today_iso = today.isoformat()
+        metrics = {"retried": 0, "paid": 0, "failed": 0, "emails_sent": 0, "skipped": 0}
+        for tenant_row in self._repo.list_active_tenants():
+            try:
+                tenant = self._tenant_repo.get_snapshot_by_slug(tenant_row.slug)
+                if tenant is None:
+                    metrics["skipped"] += 1
+                    continue
+                debt = self._repo.get_latest_unpaid_debt_invoice(int(tenant.tenant_id))
+                if debt is None or str(debt.status or "") not in {"issued", "payment_failed"}:
+                    metrics["skipped"] += 1
+                    continue
+                due_at = getattr(debt, "due_at", None)
+                if due_at is not None and today >= (due_at.date() + timedelta(days=PAYMENT_FAILURE_DEACTIVATION_DAYS)):
+                    metrics["skipped"] += 1
+                    continue
+                if self._invoice_meta_date(debt, "auto_retry_date") == today_iso:
+                    metrics["skipped"] += 1
+                    continue
+                subscription = self.ensure_subscription(tenant)
+                total_cents = int(getattr(debt, "total_cents", 0) or 0)
+                metrics["retried"] += 1
+                payment = self._execute_payment(
+                    amount_cents=total_cents,
+                    description=f"Automatikus újrapróbálás: {subscription.plan_code}",
+                    metadata={
+                        "tenant_slug": str(getattr(tenant, "slug", "") or ""),
+                        "flow": "subscription_auto_retry",
+                        "invoice_id": str(int(debt.id)),
+                    },
+                )
+                if payment.success:
+                    self._settle_debt_invoice_as_paid(tenant, subscription, debt)
+                    metrics["paid"] += 1
+                    continue
+                # Sikertelen: díjbekérőből tartozás legyen, majd email.
+                if str(debt.status or "") == "issued":
+                    self._repo.update_invoice_payment_status(
+                        int(debt.id),
+                        status="payment_failed",
+                        payment_method="auto_retry_failed",
+                        invoice_type="monthly_subscription_failed",
+                    )
+                    debt = self._repo.get_invoice_by_id(int(tenant.tenant_id), int(debt.id)) or debt
+                    self._restriction_use_case.sync_status(tenant, subscription)
+                email_sent = self._send_payment_failed_owner_email(tenant, debt)
+                if email_sent:
+                    metrics["emails_sent"] += 1
+                self._mark_invoice_retry_meta(debt, today_iso=today_iso, email_sent=email_sent)
+                metrics["failed"] += 1
+            except Exception:
+                logger.exception("Daily payment retry failed for tenant slug=%s", getattr(tenant_row, "slug", None))
+                metrics["skipped"] += 1
+        return metrics
+
+    def issue_subscription_payment_request(
+        self,
+        tenant,
+        subscription: BillingSubscriptionORM | None = None,
+        *,
+        billing_date: date | None = None,
+        period_key: str | None = None,
+    ) -> BillingInvoiceORM | None:
+        """Esedékességkor kiállít egy kiegyenlítetlen díjbekérőt (status=issued)."""
+        subscription = subscription or self.ensure_subscription(tenant)
+        if str(subscription.plan_code or "") == "free":
+            return None
+        if str(subscription.status or "") == SubscriptionStatus.RESTRICTED.value:
+            return None
+        _, _, period_end_dt, _ = self._current_period()
+        due_date = billing_date or self._billing_due_date(subscription, period_end_dt.date())
+        key = period_key or self._subscription_period_key(due_date)
+        existing = self._repo.get_invoice(tenant.tenant_id, "monthly_subscription", key)
+        if existing is not None:
+            return existing
+        plan = self._plan_map().get(subscription.plan_code) or self._plan_map()["free"]
+        resources = self._load_resource_counts_for_tenant(str(getattr(tenant, "slug", "") or ""))
+        estimated = self._estimate_next_invoice(subscription, resources)
+        total_cents = int(estimated["total_cents"] or 0)
+        if total_cents <= 0:
+            return None
+        next_extra_storage_gb = int(estimated.get("next_extra_storage_gb") or 0)
+        now = self.clock.now()
+        period_multiplier = self._billing_period_multiplier(subscription.billing_period)
+        unit_price_cents = self._plan_monthly_charge_after_discount(plan.price_cents, subscription.billing_period)
+        next_billing_date = self._next_billing_date_after(due_date, subscription.billing_period)
+        return self._repo.create_invoice(
+            tenant.tenant_id,
+            invoice_type="monthly_subscription",
+            period_key=key,
+            currency=self.default_currency,
+            total_cents=total_cents,
+            description=f"{plan.name} {self._billing_period_label(subscription.billing_period)} díjbekérő",
+            lines=[
+                {
+                    "code": plan.code,
+                    "name": plan.name,
+                    "billing_period": subscription.billing_period,
+                    "period_multiplier": period_multiplier,
+                    "unit_price_cents": unit_price_cents,
+                    "quantity": period_multiplier,
+                    "extra_kb_count": int(subscription.extra_kb_count or 0),
+                    "extra_storage_gb": next_extra_storage_gb,
+                    "total_cents": total_cents,
+                    "next_billing_date": next_billing_date.isoformat(),
+                    "payment_request": True,
+                }
+            ],
+            due_at=now,
+            status="issued",
+            payment_method="pending",
+            issued_at=now,
+        )
+
+    def simulate_open_invoice_payments(self, *, outcome: str) -> dict[str, Any]:
+        """Platform dátumszimuláció: nyitott díjbekérők / tartozások fizetésének siker/sikertelen rögzítése."""
+        normalized = str(outcome or "").strip().lower()
+        if normalized not in {"success", "failed"}:
+            raise ValueError("Ismeretlen fizetési kimenet. Használd: success vagy failed.")
+        processed = 0
+        skipped = 0
+        details: list[dict[str, Any]] = []
+        today_iso = self.clock.now().date().isoformat()
+        for tenant_row in self._repo.list_all_tenants():
+            try:
+                tenant = self._tenant_repo.get_snapshot_by_slug(tenant_row.slug)
+                if tenant is None:
+                    skipped += 1
+                    continue
+                debt = self._repo.get_latest_unpaid_debt_invoice(int(tenant.tenant_id))
+                if debt is None:
+                    skipped += 1
+                    continue
+                subscription = self.ensure_subscription(tenant)
+                if normalized == "success":
+                    self._settle_debt_invoice_as_paid(tenant, subscription, debt)
+                    processed += 1
+                    details.append(
+                        {
+                            "tenant_id": int(tenant.tenant_id),
+                            "slug": tenant.slug,
+                            "invoice_id": int(debt.id),
+                            "status": "paid",
+                        }
+                    )
+                else:
+                    # invoice_type-ot nem írjuk át: a (tenant, type, period) unique constraint
+                    # miatt ütközhet meglévő monthly_subscription_failed rekorddal.
+                    self._repo.update_invoice_payment_status(
+                        int(debt.id),
+                        status="payment_failed",
+                        payment_method="simulated_failed",
+                        invoice_type=(
+                            "monthly_subscription_failed"
+                            if str(getattr(debt, "invoice_type", "") or "") == "monthly_subscription"
+                            and self._repo.get_invoice(
+                                int(tenant.tenant_id),
+                                "monthly_subscription_failed",
+                                str(getattr(debt, "period_key", "") or ""),
+                            )
+                            is None
+                            else None
+                        ),
+                    )
+                    refreshed = self._repo.get_invoice_by_id(int(tenant.tenant_id), int(debt.id)) or debt
+                    try:
+                        email_sent = self._send_payment_failed_owner_email(tenant, refreshed)
+                    except Exception:
+                        logger.exception(
+                            "Failed to send payment-failed email for tenant slug=%s",
+                            getattr(tenant, "slug", None),
+                        )
+                        email_sent = False
+                    self._mark_invoice_retry_meta(refreshed, today_iso=today_iso, email_sent=email_sent)
+                    self._restriction_use_case.sync_status(tenant, subscription)
+                    processed += 1
+                    details.append(
+                        {
+                            "tenant_id": int(tenant.tenant_id),
+                            "slug": tenant.slug,
+                            "invoice_id": int(debt.id),
+                            "status": "payment_failed",
+                            "email_sent": email_sent,
+                        }
+                    )
+            except Exception:
+                logger.exception(
+                    "simulate_open_invoice_payments failed for tenant slug=%s",
+                    getattr(tenant_row, "slug", None),
+                )
+                skipped += 1
+        return {
+            "outcome": normalized,
+            "processed": processed,
+            "skipped": skipped,
+            "details": details,
+        }
 
 
 __all__ = [

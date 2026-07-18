@@ -105,12 +105,43 @@ class PlatformAdminSecurityMonitoringResponse(BaseModel):
 
 class PlatformAdminDebugDateRequest(BaseModel):
     simulated_date: str | None = None
+    payment_simulation_outcome: str | None = Field(default=None, pattern="^(success|failed)$")
 
 
 class PlatformAdminDebugDateResponse(BaseModel):
     enabled: bool
     simulated_date: str | None = None
     current_date: str
+    payment_simulation_outcome: str = "success"
+
+
+class PlatformAdminBillingPaymentSimulationRequest(BaseModel):
+    outcome: str = Field(pattern="^(success|failed)$")
+
+
+class PlatformAdminBillingPaymentSimulationResponse(BaseModel):
+    outcome: str
+    processed: int
+    skipped: int
+    details: list[dict] = Field(default_factory=list)
+
+
+class PlatformAdminSmsQuotaSimulationRequest(BaseModel):
+    tenant_id: int = Field(ge=1)
+    sms_quota: int = Field(ge=0, le=1_000_000)
+
+
+class PlatformAdminSmsQuotaSimulationResponse(BaseModel):
+    tenant_id: int
+    slug: str
+    name: str | None = None
+    sms_quota: int
+    plan_included: int
+    used_total: int = 0
+    period_key: str | None = None
+    carryover_addon_questions: int
+    available_total: int
+    remaining_total: int = 0
 
 
 class PlatformAdminBanIpRequest(BaseModel):

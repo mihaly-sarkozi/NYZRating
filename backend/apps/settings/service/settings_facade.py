@@ -10,7 +10,7 @@ from apps.settings.domain.settings_state import BillingSettingsState, LocaleSett
 from apps.settings.service.billing_settings_service import BillingSettingsService
 from apps.settings.service.billing_validator import BillingSettingsUpdate, BillingSettingsValidator
 from apps.settings.service.eu_vat_validation_service import EuVatValidationService
-from apps.settings.service.locale_settings_service import LocaleSettingsService, LocaleSettingsUpdate
+from apps.settings.service.locale_settings_service import FIXED_LOCALE_SETTINGS, LocaleSettingsService, LocaleSettingsUpdate
 from apps.settings.service.settings_sections_service import SettingsSectionsService
 from apps.settings.service.settings_state_mapper import coerce_settings_state, coerce_two_factor_settings_state
 
@@ -38,7 +38,15 @@ class SettingsFacade:
         self._sections_service = SettingsSectionsService(sections_lister=sections_lister)
 
     def get_settings(self) -> SettingsState:
-        return coerce_settings_state(self._core_settings_service.get_settings_snapshot())
+        state = coerce_settings_state(self._core_settings_service.get_settings_snapshot())
+        return SettingsState(
+            **{
+                **state.model_dump(),
+                "timezone": FIXED_LOCALE_SETTINGS.timezone,
+                "date_format": FIXED_LOCALE_SETTINGS.date_format,
+                "time_format": FIXED_LOCALE_SETTINGS.time_format,
+            }
+        )
 
     def get_two_factor_settings(self) -> TwoFactorSettingsState:
         return coerce_two_factor_settings_state(self._core_settings_service.get_two_factor_settings())

@@ -9,20 +9,12 @@ export type SettingsSectionTab = {
   label: string;
 };
 
+/** Egyelőre csak a számlázás látszik a beállítások oldalon (nincs almenü). */
 export function buildSettingsSections(
   t: (key: string) => string,
   includeBusinessSections: boolean,
-  includeResetSection: boolean
+  _includeResetSection: boolean
 ): SettingsSectionTab[] {
-  return [
-    { key: "security", label: t("settings.sectionSecurity") },
-    { key: "preferences", label: t("settings.sectionPreferences") },
-    ...(includeBusinessSections
-      ? [
-          { key: "billing" as const, label: t("settings.sectionBilling") },
-          { key: "domains" as const, label: t("settings.sectionDomains") },
-        ]
-      : []),
-    ...(includeResetSection ? [{ key: "reset" as const, label: t("settings.sectionReset") }] : []),
-  ];
+  if (!includeBusinessSections) return [];
+  return [{ key: "billing", label: t("settings.sectionBilling") }];
 }

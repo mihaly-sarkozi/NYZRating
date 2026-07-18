@@ -63,7 +63,7 @@ describe("useBillingForm", () => {
 
     act(() => {
       result.current.updateField("companyName", "Acme Kft");
-      result.current.updateField("taxId", "HU12345678");
+      result.current.updateField("taxId", "12892312-1-42");
       result.current.updateField("addressLine", "Fo utca 1");
       result.current.updateField("postalCode", "1111");
       result.current.updateField("city", "Budapest");
@@ -78,8 +78,10 @@ describe("useBillingForm", () => {
       expect.objectContaining({
         billing_customer_type: "company",
         billing_company_name: "Acme Kft",
-        billing_tax_id: "HU12345678",
+        billing_tax_id: "12892312-1-42",
         billing_postal_code: "1111",
+        billing_country: "HU",
+        billing_full_name: "",
       })
     );
   });

@@ -11,7 +11,7 @@ import { mapLocaleResponseToPreferencesForm, mapPreferencesFormToLocalePayload }
 import type { PreferencesFormState } from "./preferencesTypes";
 
 const DEFAULT_FORM: PreferencesFormState = {
-  timezone: "UTC",
+  timezone: "Europe/Budapest",
   dateFormat: "YYYY-MM-DD",
   timeFormat: "HH:mm",
 };

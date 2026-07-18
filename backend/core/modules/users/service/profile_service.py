@@ -47,11 +47,15 @@ class UserProfileService:
         if training_status_reader is not None:
             tenant_kb_has_training = bool(training_status_reader.tenant_has_training_material(tenant))
         owner = self._user_repository.get_owner()
+        tenant_name = (getattr(tenant, "name", None) or getattr(tenant, "slug", None) or None)
+        if isinstance(tenant_name, str):
+            tenant_name = tenant_name.strip() or None
         return build_profile_payload(
             user,
             owner=owner,
             tenant_demo_mode=tenant_demo_mode,
             tenant_kb_has_training=tenant_kb_has_training,
+            tenant_name=tenant_name,
             include_auth_context=True,
         )
 

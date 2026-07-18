@@ -83,11 +83,12 @@ function renderRoute(route: ModuleRouteDefinition) {
   }
   if (!element) return null;
 
-  if (route.requiresAuth || route.requiredPermission) {
+  if (route.requiresAuth || route.requiredPermission || route.allowedRoles?.length) {
     element = (
       <ProtectedRoute
         loadingFallback={<GuardFallback />}
         requiredPermission={route.requiredPermission}
+        allowedRoles={route.allowedRoles as Array<"user" | "admin" | "owner"> | undefined}
       >
         {element}
       </ProtectedRoute>
@@ -129,7 +130,18 @@ export default function AppShell() {
     if (tenantHostStatus !== "valid") return;
     const path = window.location.pathname || "";
     void (async () => {
-      if (path === "/demo" || path === "/demo-login" || path === "/demo-expired") return;
+      if (
+        path === "/install" ||
+        path === "/registration" ||
+        path === "/install-login" ||
+        path === "/install-expired" ||
+        path === "/install-email-sent" ||
+        path === "/demo" ||
+        path === "/demo-login" ||
+        path === "/demo-expired" ||
+        path === "/demo-email-sent"
+      )
+        return;
       if (path.startsWith("/platform-admin")) return;
       if (path === "/" && !isTenantSubdomain()) return;
       if (path === "/service-deleted") {

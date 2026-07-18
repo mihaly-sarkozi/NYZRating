@@ -1,4 +1,4 @@
-// Feladat: A traffic frontend API response típusait tartalmazza. Ezek írják le a /traffic/overview read modellt.
+// Feladat: A traffic frontend API response típusait tartalmazza.
 
 export type TrafficCatalogEntry = {
   entry_type: string;
@@ -19,4 +19,34 @@ export type TrafficOverview = {
   subscription: Record<string, unknown>;
   limits: Record<string, unknown>;
   usage: Record<string, unknown>;
+};
+
+export type TrafficSmsSendItem = {
+  id: number;
+  recipient_name: string;
+  phone: string;
+  scheduled_at: string;
+  status: string;
+  period_key: string;
+  created_at: string;
+};
+
+export type TrafficSmsSendListResponse = {
+  items: TrafficSmsSendItem[];
+  remaining_total: number;
+  available_total: number;
+  used_total: number;
+};
+
+export type TrafficSmsSendCreatePayload = {
+  recipient_name: string;
+  phone: string;
+  scheduled_at: string;
+};
+
+export type TrafficSmsSendCreateResponse = {
+  item: TrafficSmsSendItem;
+  remaining_total: number;
+  available_total: number;
+  used_total: number;
 };

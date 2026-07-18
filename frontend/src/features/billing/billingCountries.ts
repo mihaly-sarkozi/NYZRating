@@ -224,6 +224,39 @@ export function normalizeEuVatId(value: string): string {
   return value.replace(/[\s.-]/g, "").toUpperCase();
 }
 
+/** Fix számlázási ország – egyelőre csak Magyarország. */
+export const FIXED_BILLING_COUNTRY = "HU";
+
+/**
+ * Magyar adószám normalizálása belföldi formátumra.
+ * Elfogad: 12345678-1-42, 12345678142, HU12345678 (csak törzsszám).
+ * Tárolás: 12345678-1-42 (11 jegy) vagy részleges bevitel közben.
+ */
+export function normalizeHuTaxId(value: string): string {
+  let compact = value.replace(/[\s.]/g, "").toUpperCase();
+  if (compact.startsWith("HU")) compact = compact.slice(2);
+  const digits = compact.replace(/\D/g, "").slice(0, 11);
+  if (!digits) return "";
+  if (digits.length <= 8) return digits;
+  if (digits.length === 9) return `${digits.slice(0, 8)}-${digits.slice(8)}`;
+  return `${digits.slice(0, 8)}-${digits[8]}-${digits.slice(9)}`;
+}
+
+function huTaxChecksumOk(eightDigits: string): boolean {
+  if (!/^\d{8}$/.test(eightDigits)) return false;
+  const weights = [9, 7, 3, 1, 9, 7, 3, 1];
+  const sum = weights.reduce((acc, weight, index) => acc + weight * Number(eightDigits[index]), 0);
+  return sum % 10 === 0;
+}
+
+/** Magyar adószám: 8-1-2 jegy (pl. 12345678-1-42), ellenőrzőszámmal. */
+export function isValidHuTaxId(value: string): boolean {
+  let compact = value.replace(/[\s.-]/g, "").toUpperCase();
+  if (compact.startsWith("HU")) compact = compact.slice(2);
+  if (!/^\d{11}$/.test(compact)) return false;
+  return huTaxChecksumOk(compact.slice(0, 8));
+}
+
 export function isEuBillingCountry(countryCode: string): boolean {
   return BILLING_COUNTRIES.some((country) => country.code === countryCode && country.eu);
 }

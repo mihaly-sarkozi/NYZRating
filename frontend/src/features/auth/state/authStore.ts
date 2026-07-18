@@ -34,6 +34,8 @@ export interface User {
   tenant_demo_mode?: boolean;
   /** Van-e már betanított anyag a tenant NYZRatingában (billing alapján). */
   tenant_kb_has_training?: boolean;
+  /** Tenant / cégnév (install/regisztráció során megadott). */
+  tenant_name?: string | null;
 }
 
 /** Demo tenant user who has not set a password yet — show “set password” instead of “change password”. */

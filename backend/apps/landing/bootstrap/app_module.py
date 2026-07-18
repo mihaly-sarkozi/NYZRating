@@ -1,0 +1,22 @@
+from __future__ import annotations
+
+# backend/apps/landing/bootstrap/app_module.py
+# Feladat: Publikus marketing landing app modul (frontend route-okhoz, backend nélkül).
+# Sárközi Mihály - 2026.07.18
+
+from core.kernel.interface import BaseAppModule, ModuleContext
+from core.kernel.interface.app_conventions import module_key
+
+
+class LandingAppModule(BaseAppModule):
+    key = module_key("landing")
+
+    def register(self, container: ModuleContext) -> None:
+        return None
+
+
+def get_module() -> BaseAppModule:
+    return LandingAppModule()
+
+
+__all__ = ["LandingAppModule", "get_module"]

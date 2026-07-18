@@ -158,7 +158,7 @@ export default function TrafficExpansionModal({ catalog, onClose, onCheckout }: 
                   <p className="mt-0.5 text-xs text-[var(--color-muted)]">
                     {t("traffic.expandUnitPrice")
                       .replace("{{unit}}", item.unitLabel)
-                      .replace("{{price}}", `${formatEuroFromCents(item.unitPriceCents, locale)} €`)}
+                      .replace("{{price}}", `${formatEuroFromCents(item.unitPriceCents, locale)} Ft`)}
                     {item.priceSuffix ? ` ${item.priceSuffix}` : ""}
                   </p>
                 </div>
@@ -169,7 +169,7 @@ export default function TrafficExpansionModal({ catalog, onClose, onCheckout }: 
                     <button type="button" className="px-2 py-1 text-sm" onClick={() => changeQuantity(item.setQuantity, item.quantity, 1)}>+</button>
                   </div>
                   <span className="min-w-24 text-right text-sm font-medium text-[var(--color-foreground)]">
-                    {formatEuroFromCents(item.totalCents, locale)} € {t("traffic.taxSuffix")}
+                    {formatEuroFromCents(item.totalCents, locale)} Ft {t("traffic.taxSuffix")}
                   </span>
                 </div>
               </div>
@@ -182,7 +182,7 @@ export default function TrafficExpansionModal({ catalog, onClose, onCheckout }: 
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-medium text-[var(--color-muted)]">{t("traffic.expandTotal")}</span>
               <span className="text-lg font-semibold text-[var(--color-foreground)]">
-                {formatEuroFromCents(totalCents, locale)} € {t("traffic.taxSuffix")}
+                {formatEuroFromCents(totalCents, locale)} Ft {t("traffic.taxSuffix")}
               </span>
             </div>
             <Button

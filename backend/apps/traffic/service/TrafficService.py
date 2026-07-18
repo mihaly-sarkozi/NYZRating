@@ -5,15 +5,24 @@ from __future__ import annotations
 
 from typing import Any
 
+from apps.traffic.domain.hu_mobile_phone import hu_mobile_validation_error, is_valid_hu_mobile, normalize_hu_mobile
 from apps.traffic.repositories.TrafficQuestionUsageRepository import TrafficQuestionUsageRepository
 from apps.traffic.repositories.TrafficRepository import TrafficRepository
+from apps.traffic.repositories.TrafficSmsSendRepository import TrafficSmsSendRepository
 from apps.traffic.schemas.TrafficCatalogEntryResponse import TrafficCatalogEntryResponse
 from apps.traffic.schemas.TrafficOverviewResponse import TrafficOverviewResponse
 from apps.traffic.schemas.TrafficQuestionReservationResult import TrafficQuestionReservationResult
 from apps.traffic.schemas.TrafficQuestionUserUsageResponse import TrafficQuestionUserUsageResponse
+from apps.traffic.schemas.TrafficSmsSendSchemas import (
+    TrafficSmsSendCreateRequest,
+    TrafficSmsSendCreateResponse,
+    TrafficSmsSendItemResponse,
+    TrafficSmsSendListResponse,
+)
+from apps.billing.calculations import current_month_period, money as money_from_cents, round_storage_gb
+from fastapi import HTTPException
 from shared.utils.clock import Clock, SystemClock
-from shared.utils.datetime_utils import current_month_period
-from shared.utils.number_utils import money_from_cents, non_negative_int, round_storage_gb, string_or_default
+from shared.utils.number_utils import non_negative_int, safe_int, string_or_default
 
 
 class TrafficService:
@@ -27,10 +36,12 @@ class TrafficService:
         self,
         repository: TrafficRepository,
         question_usage_repository: TrafficQuestionUsageRepository,
+        sms_send_repository: TrafficSmsSendRepository,
         clock: Clock | None = None,
     ) -> None:
         self._repository = repository
         self._question_usage_repository = question_usage_repository
+        self._sms_send_repository = sms_send_repository
         self._clock = clock or SystemClock()
 
     def reserve_question(
@@ -49,11 +60,87 @@ class TrafficService:
             request_context=request_context,
         )
 
+    def list_sms_sends(self, tenant: Any) -> TrafficSmsSendListResponse:
+        tenant_id = int(tenant.tenant_id)
+        period_key, _, _, _ = current_month_period(self._clock.now())
+        self._question_usage_repository.ensure_addon_carryover_for_period(tenant_id, period_key)
+        subscription = self._repository.get_subscription(tenant_id)
+        catalog_rows = self._repository.list_catalog()
+        question_usage, _ = self._question_usage_summary(tenant_id, period_key, subscription, catalog_rows)
+        rows = self._sms_send_repository.list_for_tenant(tenant_id=tenant_id)
+        return TrafficSmsSendListResponse(
+            items=[self._sms_item(row) for row in rows],
+            remaining_total=int(question_usage.get("remaining_total") or 0),
+            available_total=int(question_usage.get("available_total") or 0),
+            used_total=int(question_usage.get("used_total") or 0),
+        )
+
+    def create_sms_send(
+        self,
+        tenant: Any,
+        *,
+        user_id: int,
+        payload: TrafficSmsSendCreateRequest,
+    ) -> TrafficSmsSendCreateResponse:
+        recipient_name = (payload.recipient_name or "").strip()
+        if not recipient_name:
+            raise HTTPException(status_code=422, detail="Az ügyfél neve kötelező.")
+        if not is_valid_hu_mobile(payload.phone):
+            raise HTTPException(status_code=422, detail=hu_mobile_validation_error(payload.phone))
+        phone = normalize_hu_mobile(payload.phone)
+        scheduled_at = payload.scheduled_at
+        if scheduled_at.tzinfo is None:
+            from datetime import UTC
+
+            scheduled_at = scheduled_at.replace(tzinfo=UTC)
+
+        reservation = self.reserve_question(
+            tenant,
+            user_id,
+            request_context={
+                "source": "traffic_sms",
+                "phone": phone,
+                "recipient_name": recipient_name,
+                "scheduled_at": scheduled_at.isoformat(),
+            },
+        )
+        if not reservation.allowed:
+            raise HTTPException(status_code=409, detail=reservation.reason or "Nincs több SMS küldési keret.")
+
+        row = self._sms_send_repository.create(
+            tenant_id=int(tenant.tenant_id),
+            created_by_user_id=int(user_id),
+            recipient_name=recipient_name,
+            phone=phone,
+            scheduled_at=scheduled_at,
+            status="sent",
+            period_key=reservation.period_key,
+        )
+        return TrafficSmsSendCreateResponse(
+            item=self._sms_item(row),
+            remaining_total=reservation.remaining_total,
+            available_total=reservation.available_total,
+            used_total=reservation.used_total,
+        )
+
+    @staticmethod
+    def _sms_item(row: dict[str, Any]) -> TrafficSmsSendItemResponse:
+        return TrafficSmsSendItemResponse(
+            id=int(row["id"]),
+            recipient_name=str(row["recipient_name"]),
+            phone=str(row["phone"]),
+            scheduled_at=row["scheduled_at"],
+            status=str(row["status"]),
+            period_key=str(row["period_key"]),
+            created_at=row["created_at"],
+        )
+
     def get_overview(self, tenant: Any) -> TrafficOverviewResponse:
         """Összerakja az aktuális tenant forgalmi áttekintését a frontend oldalnak."""
 
         tenant_id = int(tenant.tenant_id)
         period_key, period_start_dt, period_end_dt, _ = current_month_period(self._clock.now())
+        self._question_usage_repository.ensure_addon_carryover_for_period(tenant_id, period_key)
         catalog_rows = self._repository.list_catalog()
         subscription = self._repository.get_subscription(tenant_id)
         plan_code = self._subscription_value(subscription, "plan_code", "free")
@@ -76,7 +163,9 @@ class TrafficService:
                 "status": status,
                 "extra_kb_count": self._subscription_int(subscription, "extra_kb_count"),
                 "extra_storage_gb": self._subscription_int(subscription, "extra_storage_gb"),
-                "carryover_addon_questions": self._subscription_int(subscription, "carryover_addon_questions"),
+                "carryover_addon_questions": self._subscription_signed_int(
+                    subscription, "carryover_addon_questions"
+                ),
                 "carryover_training_chars": self._subscription_int(subscription, "carryover_training_chars"),
             },
             limits=limits,
@@ -101,7 +190,7 @@ class TrafficService:
         used_total = sum(int(row.get("question_count") or 0) for row in usage_rows)
         plan = self._current_plan(subscription, catalog_rows)
         monthly_included = int(plan.get("questions_monthly") or 0)
-        addon_carryover = self._subscription_int(subscription, "carryover_addon_questions")
+        addon_carryover = self._subscription_signed_int(subscription, "carryover_addon_questions")
         available_total = monthly_included + addon_carryover
         consumed_from_addons = max(0, used_total - monthly_included)
         percent = int(round((used_total / available_total) * 100)) if available_total > 0 else 100
@@ -176,7 +265,9 @@ class TrafficService:
             "knowledge_bases": int(plan.get("knowledge_bases") or 0) + self._subscription_int(subscription, "extra_kb_count"),
             "storage_gb": int(plan.get("storage_gb") or 0) + self._subscription_int(subscription, "extra_storage_gb"),
             "questions_monthly": int(plan.get("questions_monthly") or 0),
-            "addon_questions_carryover": self._subscription_int(subscription, "carryover_addon_questions"),
+            "addon_questions_carryover": self._subscription_signed_int(
+                subscription, "carryover_addon_questions"
+            ),
             "training_chars_available": self._available_training_chars(0, subscription, catalog_rows),
             "trial_days": int(plan.get("trial_days") or 0),
         }
@@ -249,10 +340,17 @@ class TrafficService:
 
     @staticmethod
     def _subscription_int(subscription: dict[str, Any] | None, field_name: str) -> int:
-        """Biztonságosan intté normalizál egy opcionális subscription számlálómezőt."""
+        """Biztonságosan nemnegatív intté normalizál egy opcionális subscription számlálómezőt."""
 
         value = subscription.get(field_name, 0) if subscription is not None else 0
         return non_negative_int(value)
+
+    @staticmethod
+    def _subscription_signed_int(subscription: dict[str, Any] | None, field_name: str) -> int:
+        """Biztonságosan intté normalizál (negatív carryover is megengedett)."""
+
+        value = subscription.get(field_name, 0) if subscription is not None else 0
+        return safe_int(value)
 
 
 __all__ = ["TrafficService"]

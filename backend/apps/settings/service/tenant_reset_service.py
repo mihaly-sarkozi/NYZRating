@@ -1,10 +1,7 @@
 # backend/apps/settings/service/tenant_reset_service.py
-# Feladat: Tenant teljes adattisztítása — schema újraépítés, owner belépés megőrzése.
-# Megjegyzés: a billing/kb-specifikus lépések eltávolítva, mert azok az app modulok
-# (apps.billing, apps.kb) nem részei az alaprendszernek. Ha egy konkrét app ezekre
-# épít, a saját reset-hook-ját a kernel lifecycle/event rendszerén keresztül kell
-# bekötnie, nem itt.
-# Sárközi Mihály - 2026.06.12
+# Feladat: Tenant teljes adattisztítása — schema újraépítés, owner belépés megőrzése,
+# billing/demo próbaidő újraindítása, ajánlások (SMS) és usage adatok törlése.
+# Sárközi Mihály - 2026.07.18
 
 from __future__ import annotations
 
@@ -17,16 +14,23 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
+from apps.billing.repositories import BillingRepository
+from apps.billing.workflows import SubscriptionStatus
+from core.kernel.config.config_loader import settings
 from core.kernel.runtime.clock import utc_now
 from core.modules.auth.models.user_authenticator_orm import UserAuthenticatorORM
 from core.modules.tenant.cache import invalidate_tenant_cache
 from core.modules.tenant.context.tenant_context import current_tenant_schema
 from core.modules.tenant.repositories.tenant_repository import TenantRepository
 from core.modules.tenant.schema.service import drop_tenant_schema, upgrade_tenant_schema
+from core.modules.tenant.slug.policy import demo_trial_expires_at
 from core.modules.users.models.user_orm import UserORM
 from shared.object_storage.service import get_object_storage
 
 logger = logging.getLogger(__name__)
+
+FREE_INCLUDED_TRAINING_CHARS = 0
+FREE_QUESTIONS_MONTHLY = 3
 
 
 @dataclass(frozen=True)
@@ -41,6 +45,7 @@ class TenantResetService:
     def __init__(self, session_factory: Callable[[], AbstractContextManager[Any]]) -> None:
         self._sf = session_factory
         self._tenant_repo = TenantRepository(session_factory)
+        self._billing_repo = BillingRepository(session_factory)
 
     def _get_engine(self) -> Engine:
         engine = getattr(self._sf, "engine", None)
@@ -77,7 +82,7 @@ class TenantResetService:
             owner=owner_snapshot,
             authenticator=authenticator_snapshot,
         )
-        self._reset_config(tenant_id=tenant_id, slug=normalized_slug, owner_user_id=owner_user_id)
+        self._reset_billing_and_config(tenant_id=tenant_id, slug=normalized_slug, owner_user_id=owner_user_id)
         invalidate_tenant_cache(normalized_slug)
 
         return TenantResetResult(
@@ -144,8 +149,20 @@ class TenantResetService:
 
     def _purge_public_tenant_data(self, tenant_id: int) -> None:
         statements = [
+            "DELETE FROM public.traffic_sms_sends WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.traffic_question_events WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.traffic_question_usage WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.traffic_question_usage_totals WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.channel_feedback_events WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.channel_usage_events WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.channel_credentials WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.billing_payment_events WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.billing_invoices WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.billing_question_usage WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.billing_training_usage WHERE tenant_id = :tenant_id",
             "DELETE FROM public.tenant_cancellation_requests WHERE tenant_id = :tenant_id",
             "DELETE FROM public.tenant_domains WHERE tenant_id = :tenant_id",
+            "DELETE FROM public.billing_subscriptions WHERE tenant_id = :tenant_id",
             """
             DELETE FROM public.platform_event_outbox
             WHERE COALESCE(payload->'_meta'->>'tenant_id', payload->>'tenant_id', '') = :tenant_id_text
@@ -167,17 +184,46 @@ class TenantResetService:
                         },
                     )
                 except Exception:
-                    logger.exception("tenant_reset_public_purge_failed", extra={"tenant_id": tenant_id, "stmt": stmt[:80]})
+                    logger.exception(
+                        "tenant_reset_public_purge_failed",
+                        extra={"tenant_id": tenant_id, "stmt": stmt[:80]},
+                    )
             db.commit()
 
-    def _reset_config(self, *, tenant_id: int, slug: str, owner_user_id: int) -> None:
-        utc_now()  # helyben tartva, ha egy konkrét app időbélyeget akar a confighoz kötni
+    def _reset_billing_and_config(self, *, tenant_id: int, slug: str, owner_user_id: int) -> None:
+        now = utc_now()
+        trial_days = max(1, int(getattr(settings, "demo_trial_days", 7) or 7))
+        trial_ends_at = demo_trial_expires_at(now, days=trial_days)
+        self._billing_repo.upsert_subscription(
+            tenant_id,
+            plan_code="free",
+            billing_period="monthly",
+            status=SubscriptionStatus.TRIAL.value,
+            trial_started_at=now,
+            trial_ends_at=trial_ends_at,
+            extra_kb_count=0,
+            extra_storage_gb=0,
+            carryover_addon_questions=0,
+            carryover_training_chars=FREE_INCLUDED_TRAINING_CHARS,
+            scheduled_plan_code=None,
+            scheduled_billing_period=None,
+            scheduled_change_effective_period=None,
+            question_warning_period_key=None,
+            question_warning_level=0,
+        )
         self._tenant_repo.create_config(
             tenant_id,
             slug=slug,
             package="free",
-            feature_flags={},
-            limits={},
+            feature_flags={
+                "billing_enabled": True,
+                "demo_mode": True,
+                "demo_expires_at": trial_ends_at.isoformat(),
+            },
+            limits={
+                "questions_monthly": FREE_QUESTIONS_MONTHLY,
+                "training_chars": FREE_INCLUDED_TRAINING_CHARS,
+            },
             created_by=owner_user_id,
         )
 

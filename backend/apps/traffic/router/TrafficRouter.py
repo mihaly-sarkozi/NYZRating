@@ -1,15 +1,18 @@
 # backend/apps/traffic/router/TrafficRouter.py
-# Feladat: A traffic app FastAPI route definícióit tartalmazza. Jogosultságot ellenőriz, majd a TrafficService read-only overview válaszát adja vissza.
-
-from __future__ import annotations
+# Feladat: Traffic overview és SMS küldési napló FastAPI route-jai.
+# Sárközi Mihály - 2026.05.24
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
-from apps.traffic.bootstrap.service_keys import TRAFFIC_SERVICE
+from apps.traffic.bootstrap.dependencies import get_traffic_service
 from apps.traffic.schemas.TrafficOverviewResponse import TrafficOverviewResponse
-from core.kernel.deps.facade import service_dependency
+from apps.traffic.schemas.TrafficSmsSendSchemas import (
+    TrafficSmsSendCreateRequest,
+    TrafficSmsSendCreateResponse,
+    TrafficSmsSendListResponse,
+)
 from core.kernel.http.tenant_dependencies import RequestTenantContext, require_tenant_context
 from core.kernel.security.rate_limit import limiter
 from core.modules.auth.web.dependencies.auth_dependencies import require_permission
@@ -17,7 +20,6 @@ from core.modules.users.domain.dto import User
 
 
 router = APIRouter()
-get_traffic_service = service_dependency(TRAFFIC_SERVICE)
 
 
 def _require_owner_or_admin(user: User) -> None:
@@ -41,4 +43,29 @@ def get_traffic_overview(
     return svc.get_overview(tenant)
 
 
-__all__ = ["get_traffic_service", "router"]
+@router.get("/traffic/sms-sends", response_model=TrafficSmsSendListResponse)
+@limiter.limit("30/minute")
+def list_traffic_sms_sends(
+    request: Request,
+    tenant: RequestTenantContext = Depends(require_tenant_context),
+    svc: Any = Depends(get_traffic_service),
+    current_user: User = Depends(require_permission("traffic.read")),
+) -> TrafficSmsSendListResponse:
+    _require_owner_or_admin(current_user)
+    return svc.list_sms_sends(tenant)
+
+
+@router.post("/traffic/sms-sends", response_model=TrafficSmsSendCreateResponse)
+@limiter.limit("20/minute")
+def create_traffic_sms_send(
+    request: Request,
+    body: TrafficSmsSendCreateRequest = Body(...),
+    tenant: RequestTenantContext = Depends(require_tenant_context),
+    svc: Any = Depends(get_traffic_service),
+    current_user: User = Depends(require_permission("traffic.write")),
+) -> TrafficSmsSendCreateResponse:
+    _require_owner_or_admin(current_user)
+    return svc.create_sms_send(tenant, user_id=int(current_user.id), payload=body)
+
+
+__all__ = ["router"]

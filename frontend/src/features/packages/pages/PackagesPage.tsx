@@ -16,27 +16,20 @@ import {
   planResourceBlock,
   readBillingResourceUsage,
 } from "../planEligibility";
-import { useAuthenticatorStatus } from "../../settings/hooks/useAuthenticator";
 import Alert from "../../../components/ui/Alert";
 import PageHeader from "../../../components/ui/PageHeader";
 import PackageCurrentPlanBanner from "../components/PackageCurrentPlanBanner";
 import PackageCancellationSection from "../components/PackageCancellationSection";
 import PackageExpandBanner from "../components/PackageExpandBanner";
-import PackageExpansionModal from "../components/PackageExpansionModal";
 import PackagePlanCard from "../components/PackagePlanCard";
 import PackageStatusModals from "../components/PackageStatusModals";
 import {
-  FLEX_STORAGE_GB_BUNDLE,
-  addonEntry,
   formatSubscriptionDateForBanner,
-  getStoragePerGbCents,
   includedNumber,
   isFreePlan,
   isScheduledChange,
-  localeTagForNumbers,
   sortPlans,
   tBannerBilledPeriod,
-  trainingInitialFeeEuroForPlan,
   type BillingPeriod,
 } from "../components/packageUtils";
 
@@ -51,17 +44,10 @@ export default function PackagesPage() {
   const cancelSubscriptionMutation = useCancelSubscriptionMutation();
   const restoreSubscriptionRenewalMutation = useRestoreSubscriptionRenewalMutation();
   const deleteServiceAccessMutation = useDeleteServiceAccessMutation();
-  const [bannerExpandModalOpen, setBannerExpandModalOpen] = useState(false);
-  const [trainingQuantity, setTrainingQuantity] = useState(0);
-  const [storageQuantity, setStorageQuantity] = useState(0);
-  const [question100Quantity, setQuestion100Quantity] = useState(0);
-  const [question500Quantity, setQuestion500Quantity] = useState(0);
   const [selectedBillingPeriod, setSelectedBillingPeriod] = useState<BillingPeriod>("quarterly");
   const [planChangePending, setPlanChangePending] = useState<{ planCode: string; billingPeriod: BillingPeriod } | null>(null);
   const [planChangeSuccess, setPlanChangeSuccess] = useState<{ message: string; status: string } | null>(null);
   const [resourceBlockMessage, setResourceBlockMessage] = useState<string | null>(null);
-  const [showAuthenticatorRequiredModal, setShowAuthenticatorRequiredModal] = useState(false);
-  const authenticatorStatusQuery = useAuthenticatorStatus();
 
   const billingErrMsg =
     billingError && typeof (billingError as { response?: { data?: { detail?: string } } })?.response?.data?.detail === "string"
@@ -88,87 +74,7 @@ export default function PackagesPage() {
       ? rawBillingPeriod
       : "monthly";
 
-  const expansionOptions = useMemo(() => {
-    const tag = localeTagForNumbers(locale);
-    const formatTrainingCharsForExpansion = (value: number): string => {
-      if (value >= 1_000_000 && value % 1_000_000 === 0) {
-        const millions = value / 1_000_000;
-        if (locale === "en") return `${millions} Million`;
-        if (locale === "es") return `${millions} Millón`;
-        return `${millions} Millió`;
-      }
-      return value.toLocaleString(tag);
-    };
-    const trainingAddon = addonEntry(catalog, "training_extra_500k");
-    const question100Addon = addonEntry(catalog, "question_pack_100");
-    const question500Addon = addonEntry(catalog, "question_pack_500");
-    const trainChars = includedNumber(trainingAddon, "training_chars", 1000000);
-    const trainCharsLabel = formatTrainingCharsForExpansion(trainChars);
-    const perGbCents = getStoragePerGbCents(catalog);
-    const storageBundleCents = FLEX_STORAGE_GB_BUNDLE * perGbCents;
-    const question100Count = includedNumber(question100Addon, "questions", 100);
-    const question500Count = includedNumber(question500Addon, "questions", 500);
-    const trainingUnitPriceCents = trainingAddon ? Number(trainingAddon.price_cents) : 2900;
-    const question100PriceCents = question100Addon ? Number(question100Addon.price_cents) : 120;
-    const question500PriceCents = question500Addon ? Number(question500Addon.price_cents) : 500;
-    return [
-      {
-        addonCode: "training_extra_500k",
-        checkoutQuantity: trainingQuantity,
-        title: t("packages.expandTrainingTitle").replace("{{chars}}", trainCharsLabel),
-        unitLabel: `${trainCharsLabel} ${t("traffic.expandCharactersUnit")}`,
-        unitPriceCents: trainingUnitPriceCents,
-        quantity: trainingQuantity,
-        setQuantity: setTrainingQuantity,
-        totalCents: trainingUnitPriceCents * trainingQuantity,
-      },
-      {
-        addonCode: "extra_storage_gb",
-        checkoutQuantity: storageQuantity * FLEX_STORAGE_GB_BUNDLE,
-        title: t("packages.expandStorageTitle").replace("{{gb}}", String(FLEX_STORAGE_GB_BUNDLE)),
-        unitLabel: `${FLEX_STORAGE_GB_BUNDLE.toLocaleString(tag)} GB`,
-        unitPriceCents: storageBundleCents,
-        priceSuffix: `/ ${t("packages.perMonthSuffix")}`,
-        quantity: storageQuantity,
-        setQuantity: setStorageQuantity,
-        totalCents: storageBundleCents * storageQuantity,
-      },
-      {
-        addonCode: "question_pack_100",
-        checkoutQuantity: question100Quantity,
-        title: t("packages.expandQuestionsTitle").replace("{{count}}", String(question100Count)),
-        unitLabel: t("packages.expandQuestionsTitle").replace("{{count}}", String(question100Count)).toLowerCase(),
-        unitPriceCents: question100PriceCents,
-        quantity: question100Quantity,
-        setQuantity: setQuestion100Quantity,
-        totalCents: question100PriceCents * question100Quantity,
-      },
-      {
-        addonCode: "question_pack_500",
-        checkoutQuantity: question500Quantity,
-        title: t("packages.expandQuestionsTitle").replace("{{count}}", String(question500Count)),
-        unitLabel: t("packages.expandQuestionsTitle").replace("{{count}}", String(question500Count)).toLowerCase(),
-        unitPriceCents: question500PriceCents,
-        quantity: question500Quantity,
-        setQuantity: setQuestion500Quantity,
-        totalCents: question500PriceCents * question500Quantity,
-      },
-    ];
-  }, [catalog, locale, question100Quantity, question500Quantity, storageQuantity, t, trainingQuantity]);
-  const selectedExpansionItems = expansionOptions.filter((item) => item.checkoutQuantity > 0);
-  const expansionTotalPriceCents = expansionOptions.reduce((sum, item) => sum + item.totalCents, 0);
-  const checkoutItemsParam = selectedExpansionItems
-    .map((item) => `${item.addonCode}:${item.checkoutQuantity}`)
-    .join(",");
-  useEffect(() => {
-    if (!bannerExpandModalOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setBannerExpandModalOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [bannerExpandModalOpen]);
-
+  const smsPackCheckoutItems = "question_pack_100:1";
   useEffect(() => {
     if (!planChangePending && !planChangeSuccess && !resourceBlockMessage) return;
     const onKey = (e: KeyboardEvent) => {
@@ -210,10 +116,6 @@ export default function PackagesPage() {
       return;
     }
     if (currentPlanCode === "free") {
-      if (!authenticatorStatusQuery.data?.enabled) {
-        setShowAuthenticatorRequiredModal(true);
-        return;
-      }
       navigate(`/admin/pricing/checkout?plan=${encodeURIComponent(planCode)}&period=${selectedBillingPeriod}`);
       return;
     }
@@ -251,6 +153,8 @@ export default function PackagesPage() {
       : "—";
   const currentPlanName =
     catalog.find((e) => e.entry_type === "plan" && e.code === currentPlanCode)?.name ?? currentPlanCode;
+  const freePlanEntry = catalog.find((e) => e.entry_type === "plan" && e.code === "free");
+  const freeSmsCount = includedNumber(freePlanEntry ?? null, "questions_monthly", 3);
   const scheduledPlanName =
     scheduledPlanCode != null ? catalog.find((e) => e.entry_type === "plan" && e.code === scheduledPlanCode)?.name ?? scheduledPlanCode : null;
   const scheduledPeriodRaw = String(subscription.scheduled_billing_period ?? "").toLowerCase();
@@ -351,6 +255,7 @@ export default function PackagesPage() {
         currentPlanCode={currentPlanCode}
         currentBillingPeriod={currentBillingPeriod}
         bannerValidityDate={bannerValidityDate}
+        freeSmsCount={freeSmsCount}
         scheduledPlanCode={scheduledPlanCode}
         scheduledPlanName={scheduledPlanName}
         scheduledBillingPeriod={scheduledBillingPeriod}
@@ -391,32 +296,31 @@ export default function PackagesPage() {
             <PackagePlanCard
               key={plan.code}
               plan={plan}
-              featured={plan.code === "growth"}
+              featured={plan.code === "pro"}
               currentPlanCode={currentPlanCode}
               scheduledPlanCode={scheduledPlanCode}
               selectedBillingPeriod={selectedBillingPeriod}
               currentBillingPeriod={currentBillingPeriod}
               pending={updateSubscriptionMutation.isPending}
               resourceBlocked={planResourceBlock(plan, usedStorageGb, usedKbCount, plan.code === currentPlanCode).blocked}
-              trainingInitialSubline={t("packages.trainingInitialSubline").replace(
-                "{{euro}}",
-                String(trainingInitialFeeEuroForPlan(plan.code, catalog))
-              )}
               t={t}
+              locale={locale}
               onSwitch={handleSwitchToPlan}
             />
           ))}
         </div>
 
         {showBannerExpandButton ? (
-          <PackageExpandBanner expansionOptions={expansionOptions} locale={locale} t={t} onOpen={() => setBannerExpandModalOpen(true)} />
+          <PackageExpandBanner
+            t={t}
+            onOpen={() => navigate(`/admin/pricing/addon-checkout?items=${encodeURIComponent(smsPackCheckoutItems)}`)}
+          />
         ) : null}
 
         <PackageStatusModals
           planChangePending={planChangePending}
           planChangeSuccess={planChangeSuccess}
           resourceBlockMessage={resourceBlockMessage}
-          showAuthenticatorRequiredModal={showAuthenticatorRequiredModal}
           pendingTargetPlan={pendingTargetPlan}
           pendingBilledPhrase={pendingBilledPhrase}
           pendingIsDowngrade={pendingIsDowngrade}
@@ -426,26 +330,6 @@ export default function PackagesPage() {
           onConfirmPlanChange={() => void confirmPlanChange()}
           onCloseSuccess={() => setPlanChangeSuccess(null)}
           onCloseResourceBlock={() => setResourceBlockMessage(null)}
-          onCloseAuthenticatorRequired={() => setShowAuthenticatorRequiredModal(false)}
-          onOpenSettings={() => {
-            setShowAuthenticatorRequiredModal(false);
-            navigate("/admin/settings");
-          }}
-        />
-
-        <PackageExpansionModal
-          open={bannerExpandModalOpen}
-          expansionOptions={expansionOptions}
-          selectedExpansionItemsCount={selectedExpansionItems.length}
-          expansionTotalPriceCents={expansionTotalPriceCents}
-          checkoutItemsParam={checkoutItemsParam}
-          locale={locale}
-          t={t}
-          onClose={() => setBannerExpandModalOpen(false)}
-          onCheckout={(itemsParam) => {
-            setBannerExpandModalOpen(false);
-            navigate(`/admin/pricing/addon-checkout?items=${encodeURIComponent(itemsParam)}`);
-          }}
         />
 
       </div>

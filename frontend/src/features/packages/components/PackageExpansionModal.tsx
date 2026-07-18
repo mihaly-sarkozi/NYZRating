@@ -74,7 +74,7 @@ export default function PackageExpansionModal({
                   <p className="mt-0.5 text-xs text-[var(--color-muted)]">
                     {t("traffic.expandUnitPrice")
                       .replace("{{unit}}", item.unitLabel)
-                      .replace("{{price}}", `${formatEuroLocaleFromCents(item.unitPriceCents, locale)} €`)}
+                      .replace("{{price}}", `${formatEuroLocaleFromCents(item.unitPriceCents, locale)} Ft`)}
                     {item.priceSuffix ? ` ${item.priceSuffix}` : ""}
                   </p>
                 </div>
@@ -89,7 +89,7 @@ export default function PackageExpansionModal({
                     </button>
                   </div>
                   <span className="min-w-24 text-right text-sm font-medium text-[var(--color-foreground)]">
-                    {formatEuroLocaleFromCents(item.totalCents, locale)} € {t("packages.taxSuffix")}
+                    {formatEuroLocaleFromCents(item.totalCents, locale)} Ft {t("packages.taxSuffix")}
                   </span>
                 </div>
               </div>
@@ -101,7 +101,7 @@ export default function PackageExpansionModal({
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-medium text-[var(--color-muted)]">{t("traffic.expandTotal")}</span>
               <span className="text-lg font-semibold text-[var(--color-foreground)]">
-                {formatEuroLocaleFromCents(expansionTotalPriceCents, locale)} € {t("packages.taxSuffix")}
+                {formatEuroLocaleFromCents(expansionTotalPriceCents, locale)} Ft {t("packages.taxSuffix")}
               </span>
             </div>
             <Button type="button" fullWidth className="mt-3" disabled={selectedExpansionItemsCount === 0} onClick={() => onCheckout(checkoutItemsParam)}>

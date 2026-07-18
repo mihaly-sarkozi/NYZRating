@@ -154,7 +154,25 @@ def _build_service(*, role: str, authenticator_secret: str | None) -> LoginServi
     )
 
 
-def test_owner_non_trial_requires_authenticator_even_when_global_twofactor_disabled() -> None:
+def test_owner_non_trial_can_login_without_authenticator() -> None:
+    svc = _build_service(role="owner", authenticator_secret=None)
+
+    result = svc.login(
+        LoginInput(
+            email="owner@example.com",
+            password="secret-pass",
+            pending_token=None,
+            two_factor_code=None,
+            ip="127.0.0.1",
+            ua="pytest",
+            tenant=TenantAuthContext(tenant_id=1, slug="misi", correlation_id="c1", security_version=0, trial_active=False),
+        )
+    )
+
+    assert isinstance(result, LoginSuccess)
+
+
+def test_owner_with_enabled_authenticator_requires_code() -> None:
     svc = _build_service(role="owner", authenticator_secret="BASE32SECRET")
 
     result = svc.login(
@@ -171,23 +189,6 @@ def test_owner_non_trial_requires_authenticator_even_when_global_twofactor_disab
 
     assert isinstance(result, LoginTwoFactorRequired)
     assert result.challenge_type == "authenticator"
-
-
-def test_owner_non_trial_without_authenticator_is_rejected() -> None:
-    svc = _build_service(role="owner", authenticator_secret=None)
-
-    with pytest.raises(ValueError, match="authenticator_required_setup"):
-        svc.login(
-            LoginInput(
-                email="owner@example.com",
-                password="secret-pass",
-                pending_token=None,
-                two_factor_code=None,
-                ip="127.0.0.1",
-                ua="pytest",
-                tenant=TenantAuthContext(tenant_id=1, slug="misi", correlation_id="c1", security_version=0, trial_active=False),
-            )
-        )
 
 
 def test_owner_trial_can_login_without_authenticator() -> None:

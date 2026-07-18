@@ -513,3 +513,41 @@ def test_process_cancellation_lifecycle_sends_notifications_and_handles_deactiva
     assert deleted_tenants == [104]
     assert dropped_schemas == ["t104"]
     assert invalidated_slugs == ["t104"]
+
+
+def test_payment_failed_owner_email_includes_settle_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    from apps.billing.constants import PAYMENT_SETTLE_PATH
+
+    svc = BillingService.__new__(BillingService)
+    sent: list[tuple[str, str, str]] = []
+
+    class _Email:
+        @staticmethod
+        def send_email(to_email: str, subject: str, body: str, is_html: bool = False) -> bool:
+            sent.append((to_email, subject, body))
+            return True
+
+    svc._email_service = _Email()  # type: ignore[attr-defined]
+    monkeypatch.setattr(svc, "_owner_email_for_tenant_slug", lambda _slug: "owner@example.com")
+    monkeypatch.setattr(svc, "_money_label", lambda cents: "12,00 EUR")
+    monkeypatch.setattr(
+        "apps.billing.service.tenant_frontend_base_url_by_slug",
+        lambda slug: f"http://{slug}.lvh.me:5173",
+    )
+
+    invoice = SimpleNamespace(
+        total_cents=1200,
+        due_at=datetime(2026, 7, 18, tzinfo=UTC),
+    )
+    tenant = SimpleNamespace(slug="acme-demo")
+
+    ok = BillingService._send_payment_failed_owner_email(svc, tenant, invoice)  # type: ignore[misc]
+
+    assert ok is True
+    assert len(sent) == 1
+    _to, subject, body = sent[0]
+    assert "Sikertelen" in subject
+    assert f"http://acme-demo.lvh.me:5173{PAYMENT_SETTLE_PATH}" in body
+    assert "A tartozást itt tudod rendezni:" in body

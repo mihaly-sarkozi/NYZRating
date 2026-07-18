@@ -71,6 +71,7 @@ services:
       INSTALL_HOST: lvh.me
       TRUSTED_HOSTS: localhost,127.0.0.1,lvh.me,*.lvh.me
       BILLING_PROVIDER: simulated
+      BILLING_DEBUG_ROUTES_ENABLED: "true"
     command: sh -c "python3 scripts/init_db.py && uvicorn main:app --reload --host 0.0.0.0 --port 8001"
     working_dir: /app/backend
     volumes:

@@ -249,11 +249,14 @@ class TenantSignupOrchestrator:
 
         normalized_email = (email or "").strip().lower()
         owner_name = (name or "").strip()
+        company = (company_name or "").strip()
+        # Tenant slug mindig a cégnévből (fallback: név), nem személyes vagy régi session értékből.
+        slug_source = company or owner_name
         self._maybe_cleanup_expired_demos()
         if self._demo_signup_repo.is_email_blocked(normalized_email):
             raise DemoEmailBlockedError()
         self._validate_email_domain(normalized_email)
-        if not owner_name:
+        if not slug_source:
             raise NameRequiredError()
         demo_session_id = self._ensure_demo_session_id(demo_session_id)
 
@@ -269,7 +272,7 @@ class TenantSignupOrchestrator:
                 existing_tenant=existing_tenant,
                 email=normalized_email,
                 preferred_locale=preferred_locale,
-                owner_name=owner_name,
+                owner_name=owner_name or company,
                 demo_session_id=demo_session_id,
             )
 
@@ -282,18 +285,18 @@ class TenantSignupOrchestrator:
         increment_metric("demo.signup.attempt_counted_total", 1.0)
 
         try:
-            slug = self._slug_reserver.reserve(demo_session_id, owner_name, normalized_email)
+            slug = self._slug_reserver.reserve(demo_session_id, slug_source, normalized_email)
             if not slug_is_valid(slug):
                 raise InvalidSlugError()
 
             normalized_plan = (plan_code or "free").strip().lower() or "free"
             normalized_period = (subscription_period or "monthly").strip().lower() or "monthly"
-            tenant_name = (company_name or owner_name or kb_name or slug).strip() or slug
+            tenant_name = (company or owner_name or kb_name or slug).strip() or slug
 
             result = self._new_signup_use_case.execute(
                 slug=slug,
                 email=normalized_email,
-                owner_name=owner_name,
+                owner_name=owner_name or company,
                 tenant_name=tenant_name,
                 preferred_locale=preferred_locale,
                 plan_code=normalized_plan,

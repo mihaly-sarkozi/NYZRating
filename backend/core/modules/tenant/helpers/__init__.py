@@ -7,11 +7,16 @@ from __future__ import annotations
 import importlib
 
 __all__ = [
+    "tenant_frontend_base_url_by_slug",
     "tenant_frontend_base_url_for_slug",
     "tenant_frontend_base_url_from_request",
 ]
 
 _LAZY: dict[str, tuple[str, str]] = {
+    "tenant_frontend_base_url_by_slug": (
+        "core.modules.tenant.helpers.tenant_frontend_url_helper",
+        "tenant_frontend_base_url_by_slug",
+    ),
     "tenant_frontend_base_url_for_slug": (
         "core.modules.tenant.helpers.tenant_frontend_url_helper",
         "tenant_frontend_base_url_for_slug",

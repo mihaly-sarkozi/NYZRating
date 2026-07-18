@@ -76,7 +76,8 @@ Ez elindítja:
 A backend induláskor lefuttatja a `backend/scripts/init_db.py` inicializálást is.
 
 Fejlesztői multi-tenant host:
-- landing/install: `http://lvh.me:5173`
+- landing/install: `http://lvh.me:5173` (átirányít `/install`-re)
+- telepítő közvetlenül: `http://lvh.me:5173/install`
 - tenant példa: `http://misi.lvh.me:5173`
 
 Az `lvh.me` és minden aldomainje automatikusan a `127.0.0.1`-re mutat, ezért nem kell hosts fájlt szerkeszteni.

@@ -58,6 +58,7 @@ def build_profile_payload(
     owner: User | None = None,
     tenant_demo_mode: bool = False,
     tenant_kb_has_training: bool = True,
+    tenant_name: str | None = None,
     include_auth_context: bool = True,
 ) -> dict[str, object]:
     locale, theme = effective_locale_theme(user, owner)
@@ -78,6 +79,8 @@ def build_profile_payload(
         payload["credentials_password_set"] = getattr(user, "credentials_password_set", True)
         payload["tenant_demo_mode"] = tenant_demo_mode
         payload["tenant_kb_has_training"] = tenant_kb_has_training
+        if tenant_name is not None:
+            payload["tenant_name"] = tenant_name
     return payload
 
 

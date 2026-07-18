@@ -76,7 +76,7 @@ class BaseConfig(BaseSettings):
     metrics_require_token_in_prod: bool = True
     metrics_require_ip_allowlist_in_prod: bool = True
     # Observability export / tracing
-    observability_service_name: str = "brainbankcenter-backend"
+    observability_service_name: str = "nyzrating-backend"
     observability_metrics_histogram_buckets_ms: str = "5,10,25,50,75,100,150,250,500,750,1000,2000,5000,10000"
     observability_trace_enabled: bool = False
     observability_trace_sample_ratio: float = 0.1

@@ -64,7 +64,7 @@ Ha nem te kezdeményezted ezt a módosítást, hagyd figyelmen kívül ezt az em
 {signature}""",
         },
         "demo_login": {
-            "subject": "BrainBankCenter demo - A rendszered elkészült",
+            "subject": "NYZ Rating demo - A rendszered elkészült",
             "body": """Szia!
 
 A demo környezeted elkészült, és az alábbi linken azonnal be tudsz lépni:
@@ -80,7 +80,7 @@ Ha nem te kérted a demo létrehozását, hagyd figyelmen kívül ezt az emailt.
 {signature}""",
         },
         "demo_set_password": {
-            "subject": "BrainBankCenter demo - Állítsd be a jelszavad",
+            "subject": "NYZ Rating demo - Állítsd be a jelszavad",
             "body": """Szia!
 
 A demo környezeted elkészült. A továbblépéshez állítsd be a jelszavad az alábbi linken:
@@ -154,7 +154,7 @@ Best regards,
 {signature}""",
         },
         "demo_login": {
-            "subject": "BrainBankCenter demo - Your workspace is ready",
+            "subject": "NYZ Rating demo - Your workspace is ready",
             "body": """Hello,
 
 Your demo workspace is ready, and you can sign in immediately using this link:
@@ -170,7 +170,7 @@ Best regards,
 {signature}""",
         },
         "demo_set_password": {
-            "subject": "BrainBankCenter demo - Set your password",
+            "subject": "NYZ Rating demo - Set your password",
             "body": """Hello,
 
 Your demo workspace is ready. To continue, set your password using the link below:
@@ -244,7 +244,7 @@ Saludos,
 {signature}""",
         },
         "demo_login": {
-            "subject": "BrainBankCenter demo - Tu entorno está listo",
+            "subject": "NYZ Rating demo - Tu entorno está listo",
             "body": """Hola:
 
 Tu entorno demo está listo y puedes iniciar sesión inmediatamente con este enlace:
@@ -260,7 +260,7 @@ Saludos,
 {signature}""",
         },
         "demo_set_password": {
-            "subject": "BrainBankCenter demo - Configura tu contraseña",
+            "subject": "NYZ Rating demo - Configura tu contraseña",
             "body": """Hola:
 
 Tu entorno demo está listo. Para continuar, configura tu contraseña en el siguiente enlace:

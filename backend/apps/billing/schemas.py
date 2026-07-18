@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-DEFAULT_BILLING_CURRENCY = "EUR"
+DEFAULT_BILLING_CURRENCY = "HUF"
 
 
 class BillingCatalogEntryResponse(BaseModel):
@@ -85,12 +85,24 @@ class BillingAddonPurchaseRequest(BaseModel):
 
 class BillingDebugDateRequest(BaseModel):
     simulated_date: str | None = None
+    payment_simulation_outcome: str | None = None
+
+    @field_validator("payment_simulation_outcome")
+    @classmethod
+    def validate_payment_simulation_outcome(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        if normalized not in {"success", "failed"}:
+            raise ValueError("Invalid payment simulation outcome.")
+        return normalized
 
 
 class BillingDebugDateResponse(BaseModel):
     enabled: bool
     simulated_date: str | None = None
     current_date: str
+    payment_simulation_outcome: str = "success"
 
 
 class BillingDebugBillingRunRequest(BaseModel):
@@ -161,6 +173,10 @@ class TenantStatisticsResponse(BaseModel):
 class BillingAccessStatusResponse(BaseModel):
     restricted: bool
     payment_warning: dict[str, Any] | None = None
+    tenant_active: bool = True
+    billing_lock: bool = False
+    recovery_mode: bool = False
+    redirect_path: str = "/admin/szamlak/kiegyenlites"
 
 
 class BillingUpgradePreviewResponse(BaseModel):
@@ -180,6 +196,9 @@ class BillingUpgradePreviewResponse(BaseModel):
     total_charge_cents: int
     paid_until_iso: str
     currency: str = DEFAULT_BILLING_CURRENCY
+    sms_carryover_from_old_plan: int = 0
+    total_prepaid_months: int = 0
+    remaining_prepaid_months: int = 0
 
 
 class BillingUpgradeCompleteResponse(BaseModel):

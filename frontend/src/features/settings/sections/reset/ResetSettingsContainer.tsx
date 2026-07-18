@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useTranslation } from "../../../../i18n";
-import { queryKeys } from "../../../../queryKeys";
+import { useAuthStore } from "../../../../store/authStore";
 import { getApiErrorMessage } from "../../../../utils/getApiErrorMessage";
 import { useTenantResetMutation } from "../../hooks/useTenantReset";
 import ResetSettingsSection from "./ResetSettingsSection";
@@ -18,8 +17,8 @@ function tenantSlugFromHost(): string | null {
 
 export default function ResetSettingsContainer() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const logout = useAuthStore((s) => s.logout);
   const [confirmSlug, setConfirmSlug] = useState("");
   const expectedSlug = useMemo(() => tenantSlugFromHost(), []);
   const resetMutation = useTenantResetMutation();
@@ -29,14 +28,12 @@ export default function ResetSettingsContainer() {
     if (typeof window !== "undefined" && !window.confirm(t("settings.resetConfirmDialog"))) return;
     resetMutation
       .mutateAsync({ confirm_slug: confirmSlug.trim().toLowerCase() })
-      .then((res) => {
+      .then(async (res) => {
         setConfirmSlug("");
         toast.success(res.message || t("settings.resetSuccess"));
-        void queryClient.invalidateQueries({ queryKey: queryKeys.kb });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.billingAccessStatus });
-        const kbUuid = res.default_knowledge_base_uuid?.trim();
-        navigate(kbUuid ? `/kb/ingest/${kbUuid}` : "/kb", { replace: true });
+        queryClient.clear();
+        await logout();
+        window.location.assign("/login");
       })
       .catch((error) => toast.error(getApiErrorMessage(error) ?? t("common.errorGeneric")));
   };

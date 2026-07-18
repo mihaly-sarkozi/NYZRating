@@ -4,13 +4,25 @@ import { useTranslation } from "../../../i18n";
 import { useAuthStore } from "../../../store/authStore";
 import { useBillingOverview, useUpdateSubscriptionMutation, type BillingCatalogEntry } from "../../billing/hooks/useBilling";
 import { formatPlanResourceBlockMessage, planResourceBlock, readBillingResourceUsage } from "../planEligibility";
-import { patchBillingSettings } from "../../../api/services/settingsService";
-import { EU_COUNTRIES, isValidEuVatId, isValidPostalCode, normalizeEuVatId, normalizePostalCode } from "./checkoutOptions";
-import { checkoutCustomerTypeFromSettings, hasSavedCheckoutBillingDetails, type BillingCustomerType } from "./checkoutBillingDetails";
+import {
+  FIXED_BILLING_COUNTRY,
+  isValidHuTaxId,
+  isValidPostalCode,
+  normalizeHuTaxId,
+  normalizePostalCode,
+} from "./checkoutOptions";
+import { hasSavedCheckoutBillingDetails } from "./checkoutBillingDetails";
 import { SavedBillingDetailsSummary } from "./SavedBillingDetailsSummary";
-import { useBillingSettings, useLocaleSettings } from "../../settings/hooks/useSettings";
+import { useBillingSettings, useLocaleSettings, usePatchBillingSettingsMutation } from "../../settings/hooks/useSettings";
 import { formatDateOnly } from "../../../utils/dateTimeFormatting";
-import { trainingInitialFeeEuroForPlan } from "../components/packageUtils";
+import { getApiErrorMessage } from "../../../utils/getApiErrorMessage";
+import {
+  addMonthsToDateIso,
+  billingPeriodMonths,
+  flooredMonthlyEuroAfterDiscount,
+  formatForintAmount,
+  todayDateIso,
+} from "../components/packageUtils";
 
 const VALID_PERIODS = ["monthly", "quarterly", "yearly"] as const;
 type BillingPeriod = (typeof VALID_PERIODS)[number];
@@ -19,33 +31,16 @@ function isFreePlan(plan: BillingCatalogEntry): boolean {
   return plan.code === "free" || plan.price_cents === 0;
 }
 
-function billingDiscountPercent(period: string): number {
-  const p = (period || "monthly").toLowerCase();
-  if (p === "quarterly") return 7;
-  if (p === "yearly") return 15;
-  return 0;
-}
-
-function discountedMonthlyCents(priceCents: number, period: string): number {
-  const d = billingDiscountPercent(period);
-  if (d <= 0) return priceCents;
-  return Math.round((Number(priceCents) * (100 - d)) / 100);
-}
-
-function flooredMonthlyEuroAfterDiscount(priceCents: number, selectedPeriod: string): number {
-  const monthlyDiscCents = discountedMonthlyCents(priceCents, selectedPeriod);
-  return Math.floor(Number(monthlyDiscCents) / 100);
-}
-
 export default function PackagesCheckoutPage() {
   const { t, locale } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
   const { data: billingOverview, isLoading } = useBillingOverview();
-  const { data: settings } = useBillingSettings();
+  const { data: settings, isLoading: settingsLoading } = useBillingSettings();
   const { data: localeSettings } = useLocaleSettings();
   const updateSubscriptionMutation = useUpdateSubscriptionMutation();
+  const patchBillingMutation = usePatchBillingSettingsMutation();
 
   const planCode = (searchParams.get("plan") ?? "").toLowerCase();
   const rawPeriod = (searchParams.get("period") ?? "quarterly").toLowerCase();
@@ -54,17 +49,15 @@ export default function PackagesCheckoutPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvc, setCardCvc] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [customerType, setCustomerType] = useState<BillingCustomerType>("company");
   const [company, setCompany] = useState("");
   const [addressLine, setAddressLine] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
-  const [country, setCountry] = useState("");
   const [taxId, setTaxId] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [billingDetailsEditing, setBillingDetailsEditing] = useState(true);
   const [billingDetailsPrefilled, setBillingDetailsPrefilled] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const catalog = useMemo(() => billingOverview?.catalog ?? [], [billingOverview?.catalog]);
   const plan = useMemo(
@@ -83,10 +76,9 @@ export default function PackagesCheckoutPage() {
     let periodTotalEuro: number | null = null;
     if (billingPeriod === "quarterly") periodTotalEuro = effM * 3;
     if (billingPeriod === "yearly") periodTotalEuro = effM * 12;
-    const trainingInitialFeeEuro = trainingInitialFeeEuroForPlan(plan.code, catalog);
-    const dueNowEuro = (periodTotalEuro ?? monthEuro) + trainingInitialFeeEuro;
-    return { monthEuro, periodTotalEuro, trainingInitialFeeEuro, dueNowEuro };
-  }, [plan, billingPeriod, catalog]);
+    const dueNowEuro = periodTotalEuro ?? monthEuro;
+    return { monthEuro, periodTotalEuro, dueNowEuro };
+  }, [plan, billingPeriod]);
 
   const billedPhrase =
     billingPeriod === "monthly"
@@ -104,43 +96,72 @@ export default function PackagesCheckoutPage() {
   const hasSavedBillingDetails = hasSavedCheckoutBillingDetails(settings);
   const billingDetailsLocked = hasSavedBillingDetails && !billingDetailsEditing;
 
+  // Csak a settings betöltése után töltünk prefillel — különben a későn érkező válasz felülírja a begépelt adatokat.
   useEffect(() => {
-    if (!settings || billingDetailsPrefilled) return;
-    const savedCustomerType = checkoutCustomerTypeFromSettings(settings);
-    setCustomerType(savedCustomerType);
-    setCompany(savedCustomerType === "company" ? settings.billing_company_name ?? "" : "");
-    setFullName(savedCustomerType === "private" ? settings.billing_full_name ?? "" : user?.name ?? "");
+    if (settingsLoading || billingDetailsPrefilled) return;
+    if (!settings) {
+      setBillingDetailsPrefilled(true);
+      return;
+    }
+    setCompany(settings.billing_company_name ?? "");
     setAddressLine(settings.billing_address_line ?? "");
     setPostalCode(normalizePostalCode(settings.billing_postal_code ?? ""));
     setCity(settings.billing_city ?? "");
-    setCountry(settings.billing_country ?? "");
-    setTaxId(normalizeEuVatId(settings.billing_tax_id ?? ""));
+    setTaxId(normalizeHuTaxId(settings.billing_tax_id ?? ""));
     setBillingDetailsEditing(!hasSavedCheckoutBillingDetails(settings));
     setBillingDetailsPrefilled(true);
-  }, [billingDetailsPrefilled, settings, user?.name]);
+  }, [billingDetailsPrefilled, settings, settingsLoading]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!plan || !acceptTerms || currentPlanCode !== "free") return;
-    if (!isValidPostalCode(postalCode) || (customerType === "company" && !isValidEuVatId(country, taxId))) return;
+
+    const companyName = company.trim() || String(settings?.billing_company_name ?? "").trim();
+    const address = addressLine.trim() || String(settings?.billing_address_line ?? "").trim();
+    const cityName = city.trim() || String(settings?.billing_city ?? "").trim();
+    const postal = normalizePostalCode(postalCode || settings?.billing_postal_code || "");
+    const tax = normalizeHuTaxId(taxId || settings?.billing_tax_id || "");
+
+    if (!companyName || !address || !cityName || !postal.trim()) {
+      setFormError(t("packages.checkoutBillingRequiredError"));
+      setBillingDetailsEditing(true);
+      return;
+    }
+    if (!isValidPostalCode(postal)) {
+      setFormError(t("packages.checkoutPostalCodeHint"));
+      setBillingDetailsEditing(true);
+      return;
+    }
+    if (!isValidHuTaxId(tax)) {
+      setFormError(t("settings.billingInvalidTaxId"));
+      setBillingDetailsEditing(true);
+      return;
+    }
+
     const { usedGb, usedKbCount } = readBillingResourceUsage(billingOverview?.usage as Record<string, unknown> | undefined);
     const block = planResourceBlock(plan, usedGb, usedKbCount, false);
     if (block.blocked) return;
+
     try {
-      await patchBillingSettings({
-        billing_customer_type: customerType,
-        billing_full_name: fullName,
-        billing_company_name: customerType === "company" ? company : "",
-        billing_tax_id: customerType === "company" ? normalizeEuVatId(taxId) : "",
-        billing_address_line: addressLine,
-        billing_postal_code: postalCode,
-        billing_city: city,
-        billing_country: country,
+      // Első csomagvásárláskor a cégadatokat kötelezően elmentjük a számlázáshoz.
+      await patchBillingMutation.mutateAsync({
+        billing_customer_type: "company",
+        billing_full_name: "",
+        billing_company_name: companyName,
+        billing_tax_id: tax,
+        billing_address_line: address,
+        billing_postal_code: postal,
+        billing_city: cityName,
+        billing_country: FIXED_BILLING_COUNTRY,
       });
       const res = await updateSubscriptionMutation.mutateAsync({ plan_code: plan.code, billing_period: billingPeriod });
-      navigate("/admin/pricing", { state: { checkoutComplete: true, message: res.message, status: res.status } });
-    } catch {
-      /* axios error surfaced via mutation */
+      navigate("/admin/forgalom", {
+        state: { checkoutComplete: true, message: res.message },
+        replace: true,
+      });
+    } catch (err) {
+      setFormError(getApiErrorMessage(err) ?? t("packages.checkoutBillingSaveFailed"));
     }
   };
 
@@ -154,7 +175,7 @@ export default function PackagesCheckoutPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || settingsLoading || !billingDetailsPrefilled) {
     return (
       <div className="p-6 w-full min-h-full bg-[var(--color-background)] text-[var(--color-foreground)]">
         <div>{t("common.loading")}</div>
@@ -192,24 +213,20 @@ export default function PackagesCheckoutPage() {
     );
   }
 
-  const startIso = billingOverview?.current_period_start_iso ?? "";
-  const endIso = billingOverview?.current_period_end_iso ?? "";
-  const fromLabel = startIso
-    ? formatDateOnly(startIso, {
-        locale,
-        timezone: localeSettings?.timezone,
-        dateFormat: localeSettings?.date_format,
-        dateStyle: localeSettings?.date_format ? undefined : "long",
-      })
-    : "—";
-  const toLabel = endIso
-    ? formatDateOnly(endIso, {
-        locale,
-        timezone: localeSettings?.timezone,
-        dateFormat: localeSettings?.date_format,
-        dateStyle: localeSettings?.date_format ? undefined : "long",
-      })
-    : "—";
+  const startIso = todayDateIso();
+  const endIso = addMonthsToDateIso(startIso, billingPeriodMonths(billingPeriod));
+  const fromLabel = formatDateOnly(startIso, {
+    locale,
+    timezone: localeSettings?.timezone,
+    dateFormat: localeSettings?.date_format,
+    dateStyle: localeSettings?.date_format ? undefined : "long",
+  });
+  const toLabel = formatDateOnly(endIso, {
+    locale,
+    timezone: localeSettings?.timezone,
+    dateFormat: localeSettings?.date_format,
+    dateStyle: localeSettings?.date_format ? undefined : "long",
+  });
 
   const { usedGb: checkoutUsedGb, usedKbCount: checkoutUsedKb } = readBillingResourceUsage(
     billingOverview?.usage as Record<string, unknown> | undefined
@@ -219,13 +236,13 @@ export default function PackagesCheckoutPage() {
   const submitDisabled =
     !acceptTerms ||
     updateSubscriptionMutation.isPending ||
+    patchBillingMutation.isPending ||
     (!billingDetailsLocked &&
-      (!fullName.trim() ||
-        !country.trim() ||
+      (!company.trim() ||
+        !isValidHuTaxId(taxId) ||
         !isValidPostalCode(postalCode) ||
         !city.trim() ||
-        !addressLine.trim() ||
-        (customerType === "company" && (!company.trim() || !isValidEuVatId(country, taxId))))) ||
+        !addressLine.trim())) ||
     !cardNumber.trim() ||
     !cardExpiry.trim() ||
     !cardCvc.trim() ||
@@ -259,19 +276,15 @@ export default function PackagesCheckoutPage() {
           <p>
             <span className="text-[var(--color-muted)]">{t("packages.checkoutAmountHint")}</span>{" "}
             <span className="font-medium tabular-nums">
-              {summary.monthEuro} € / {t("packages.perMonthSuffix")}
+              {formatForintAmount(summary.monthEuro, locale)} Ft / {t("packages.perMonthSuffix")}
               {summary.periodTotalEuro != null && checkoutTotalPeriodAdverb
-                ? ` · ${summary.periodTotalEuro} € / ${checkoutTotalPeriodAdverb}`
+                ? ` · ${formatForintAmount(summary.periodTotalEuro, locale)} Ft / ${checkoutTotalPeriodAdverb}`
                 : ""}
             </span>
           </p>
           <p>
-            <span className="text-[var(--color-muted)]">{t("packages.checkoutTrainingInitialFee")}</span>{" "}
-            <span className="font-medium tabular-nums">{summary.trainingInitialFeeEuro} €</span>
-          </p>
-          <p>
             <span className="text-[var(--color-muted)]">{t("packages.checkoutDueNowTotal")}</span>{" "}
-            <span className="font-semibold tabular-nums">{summary.dueNowEuro} €</span>
+            <span className="font-semibold tabular-nums">{formatForintAmount(summary.dueNowEuro, locale)} Ft</span>
           </p>
           <p className="text-[var(--color-muted)] text-xs leading-relaxed pt-1">
             {t("packages.checkoutPeriodWindow")
@@ -286,68 +299,14 @@ export default function PackagesCheckoutPage() {
             <SavedBillingDetailsSummary settings={settings} onEdit={() => setBillingDetailsEditing(true)} />
           ) : (
           <div className="space-y-3">
-            <fieldset className="rounded-xl border border-[var(--color-border)] p-3">
-              <legend className="px-1 text-xs font-medium text-[var(--color-muted)]">{t("packages.checkoutCustomerType")}</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="billing_customer_type"
-                    checked={customerType === "company"}
-                    onChange={() => setCustomerType("company")}
-                    className="mr-1 shrink-0"
-                    style={{ width: "auto" }}
-                  />
-                  <span className="relative -top-[3px]">{t("packages.checkoutCustomerTypeCompany")}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="billing_customer_type"
-                    checked={customerType === "private"}
-                    onChange={() => setCustomerType("private")}
-                    className="mr-1 shrink-0"
-                    style={{ width: "auto" }}
-                  />
-                  <span className="relative -top-[3px]">{t("packages.checkoutCustomerTypePrivate")}</span>
-                </label>
-              </div>
-            </fieldset>
             <label className="block text-xs text-[var(--color-muted)]">
-              {customerType === "company" ? t("packages.checkoutRepresentativeName") : t("packages.checkoutFullName")}
+              {t("packages.checkoutCompanyRequired")}
               <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
                 className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                autoComplete="name"
+                autoComplete="organization"
               />
-            </label>
-            {customerType === "company" ? (
-              <label className="block text-xs text-[var(--color-muted)]">
-                {t("packages.checkoutCompanyRequired")}
-                <input
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                  autoComplete="organization"
-                />
-              </label>
-            ) : null}
-            <label className="block text-xs text-[var(--color-muted)]">
-              {t("packages.checkoutCountry")}
-              <select
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-                className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                autoComplete="country-name"
-              >
-                <option value="">{t("packages.checkoutCountrySelectPlaceholder")}</option>
-                {EU_COUNTRIES.map((item) => (
-                  <option key={item.code} value={item.code} disabled={item.disabled}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
             </label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-xs text-[var(--color-muted)]">
@@ -381,17 +340,16 @@ export default function PackagesCheckoutPage() {
                 autoComplete="street-address"
               />
             </label>
-            {customerType === "company" ? (
-              <label className="block text-xs text-[var(--color-muted)]">
-                {t("packages.checkoutTaxIdRequired")}
-                <input
-                  value={taxId}
-                  onChange={(e) => setTaxId(normalizeEuVatId(e.target.value))}
-                  className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
-                />
-                <span className="mt-1 block text-[11px] text-[var(--color-muted)]">{t("packages.checkoutTaxIdFormatHint")}</span>
-              </label>
-            ) : null}
+            <label className="block text-xs text-[var(--color-muted)]">
+              {t("packages.checkoutTaxIdRequired")}
+              <input
+                value={taxId}
+                onChange={(e) => setTaxId(normalizeHuTaxId(e.target.value))}
+                className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+                placeholder="12892312-1-42"
+              />
+              <span className="mt-1 block text-[11px] text-[var(--color-muted)]">{t("packages.checkoutTaxIdFormatHint")}</span>
+            </label>
           </div>
           )}
 
@@ -436,8 +394,10 @@ export default function PackagesCheckoutPage() {
             <span className="relative top-px ml-[3px]">{t("packages.checkoutAcceptSimulated")}</span>
           </label>
 
-          {updateSubscriptionMutation.isError ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{t("common.errorGeneric")}</p>
+          {formError || updateSubscriptionMutation.isError || patchBillingMutation.isError ? (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              {formError ?? getApiErrorMessage(updateSubscriptionMutation.error ?? patchBillingMutation.error) ?? t("common.errorGeneric")}
+            </p>
           ) : null}
 
           <div className="flex flex-wrap gap-3 pt-2">
@@ -446,7 +406,9 @@ export default function PackagesCheckoutPage() {
               disabled={submitDisabled}
               className="rounded-lg px-4 py-2.5 bg-[var(--color-primary)] text-[var(--color-on-primary)] text-sm font-semibold disabled:opacity-50"
             >
-              {updateSubscriptionMutation.isPending ? t("common.loading") : t("packages.checkoutSubmit")}
+              {updateSubscriptionMutation.isPending || patchBillingMutation.isPending
+                ? t("common.loading")
+                : t("packages.checkoutSubmit")}
             </button>
             <button
               type="button"

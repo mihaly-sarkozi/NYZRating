@@ -8,18 +8,21 @@ import { mapBillingFormToPayload, mapBillingResponseToForm } from "./billingMapp
 describe("billingMapper", () => {
   it("maps API response into billing form state", () => {
     const form = mapBillingResponseToForm({
-      billing_customer_type: "company",
+      billing_customer_type: "private",
       billing_full_name: "Teszt Elek",
       billing_company_name: "Acme Kft",
-      billing_tax_id: "HU12345678",
+      billing_tax_id: "12892312-1-42",
       billing_address_line: "Fo utca 1",
       billing_postal_code: "1111",
       billing_city: "Budapest",
-      billing_region: "",
-      billing_country: "HU",
+      billing_region: "Pest",
+      billing_country: "DE",
     });
     expect(form.companyName).toBe("Acme Kft");
     expect(form.customerType).toBe("company");
+    expect(form.fullName).toBe("");
+    expect(form.country).toBe("HU");
+    expect(form.region).toBe("");
   });
 
   it("maps form into normalized API payload", () => {
@@ -27,15 +30,19 @@ describe("billingMapper", () => {
       customerType: "company",
       fullName: "Teszt Elek",
       companyName: " Acme Kft ",
-      taxId: "hu 12345678",
+      taxId: "12892312-1-42",
       addressLine: "Fo utca 1",
       postalCode: "11 11",
       city: "Budapest",
-      region: "",
-      country: "HU",
+      region: "Pest",
+      country: "DE",
     });
+    expect(payload.billing_customer_type).toBe("company");
+    expect(payload.billing_full_name).toBe("");
     expect(payload.billing_company_name).toBe("Acme Kft");
-    expect(payload.billing_tax_id).toBe("HU12345678");
+    expect(payload.billing_tax_id).toBe("12892312-1-42");
+    expect(payload.billing_country).toBe("HU");
+    expect(payload.billing_region).toBe("");
     expect(payload.billing_postal_code).toBe("11 11");
   });
 });

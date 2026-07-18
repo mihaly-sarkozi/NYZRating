@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { GearIcon } from "@radix-ui/react-icons";
 import { useTranslation } from "../i18n";
 import { useAuthStore } from "../store/authStore";
 import { hasUserPermission } from "../platform/permissions";
 import { getModuleMenuDefinitions, getAuthenticatedFallbackPath } from "../platform/moduleRegistry";
+import { useBillingAccessStatus } from "../features/billing/hooks/useBilling";
+import { isTenantSubdomain } from "../utils/domain";
 
 type NavbarProps = {
   topOffsetClassName?: string;
@@ -19,17 +20,17 @@ export default function Navbar({
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const hamburgerButtonRef = useRef<HTMLDivElement | null>(null);
   const hamburgerMenuRef = useRef<HTMLDivElement | null>(null);
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const { data: accessStatus } = useBillingAccessStatus({
+    enabled: Boolean(user) && isTenantSubdomain(),
+    staleTime: 15_000,
+  });
+  const billingLock = Boolean(accessStatus?.billing_lock);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
-      if (profileMenuOpen && profileMenuRef.current && target && !profileMenuRef.current.contains(target)) {
-        setProfileMenuOpen(false);
-      }
       const clickedHamburgerButton = Boolean(hamburgerButtonRef.current && target && hamburgerButtonRef.current.contains(target));
       const clickedHamburgerMenu = Boolean(hamburgerMenuRef.current && target && hamburgerMenuRef.current.contains(target));
       if (menuOpen && !clickedHamburgerButton && !clickedHamburgerMenu) {
@@ -38,7 +39,7 @@ export default function Navbar({
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [menuOpen, profileMenuOpen]);
+  }, [menuOpen]);
 
   const handleLogout = () => {
     setMenuOpen(false);
@@ -48,13 +49,20 @@ export default function Navbar({
 
   const go = (path: string) => {
     setMenuOpen(false);
-    setProfileMenuOpen(false);
     navigate(path);
   };
 
   const visibleMenuItems = getModuleMenuDefinitions()
     .filter((item) => (item.requiresAuth ? Boolean(user) : true))
     .filter((item) => (item.requiredPermission ? hasUserPermission(user, item.requiredPermission) : true))
+    .filter((item) => {
+      if (!item.allowedRoles?.length) return true;
+      return Boolean(user && item.allowedRoles.includes(user.role));
+    })
+    .filter((item) => {
+      if (!billingLock) return true;
+      return item.path === "/admin/szamlak" || item.path.startsWith("/admin/szamlak/");
+    })
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
     .map((item) => ({
       key: item.key,
@@ -63,11 +71,9 @@ export default function Navbar({
       order: item.order ?? 999,
     }));
 
-  const profileMenuItems = visibleMenuItems.filter((item) => item.key === "users.roles.menu" || item.key === "settings.system");
-
   const leftMenuSections = [
-    visibleMenuItems.filter((item) => item.order < 30),
-    visibleMenuItems.filter((item) => item.order >= 30 && item.order < 50),
+    visibleMenuItems.filter((item) => item.order < 40),
+    visibleMenuItems.filter((item) => item.order >= 40 && item.order < 50),
     visibleMenuItems.filter((item) => item.order >= 50),
   ].filter((section) => section.length > 0);
 
@@ -79,9 +85,8 @@ export default function Navbar({
 
   return (
     <nav className={`w-full bg-[var(--color-background)] text-[var(--color-foreground)] border-b border-[var(--color-border)] fixed ${topOffsetClassName} left-0 z-50`}>
-      <div className="p-2 flex justify-between items-center">
-        {/* Bal oldal: hamburger + BrainBankCenter */}
-        <div ref={hamburgerButtonRef} className="flex items-center gap-2 min-w-0">
+      <div className="p-2 flex items-center justify-between gap-2">
+        <div ref={hamburgerButtonRef} className="flex items-center shrink-0">
           {showHamburger ? (
             <button
               type="button"
@@ -101,71 +106,22 @@ export default function Navbar({
               )}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              setProfileMenuOpen(false);
-              if (user) {
-                const fallback = getAuthenticatedFallbackPath();
-                if (location.pathname !== fallback) navigate(fallback);
-              } else {
-                navigate("/");
-              }
-            }}
-            className="font-semibold text-[var(--color-foreground)] truncate hover:underline"
-          >
-            BrainBankCenter
-          </button>
         </div>
-
-        {/* Jobb oldal: név, role + profil beállítás ikon (fogaskerék) */}
-        <div ref={profileMenuRef} className="flex items-center gap-2 sm:gap-3 min-w-0 relative">
-          {user && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setProfileMenuOpen((v) => !v);
-                }}
-                className="flex flex-col items-end text-right min-w-0"
-                aria-label={t("profile.title")}
-              >
-                <span className="text-sm text-[var(--color-foreground)] truncate max-w-[120px] sm:max-w-[200px] hover:underline">
-                  {user.name?.trim() || user.email}
-                </span>
-                <span className="text-xs text-[var(--color-muted)]">
-                  {user.role === "owner" ? t("roles.roleOwner") : user.role === "admin" ? t("roles.roleAdmin") : t("roles.roleUser")}
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setProfileMenuOpen((v) => !v);
-                }}
-                className="p-2 rounded shrink-0 hover:bg-gray-200 dark:hover:bg-gray-700"
-                aria-label={t("nav.settings")}
-              >
-                <GearIcon className="w-5 h-5 text-[var(--color-foreground)]" />
-              </button>
-              {profileMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] shadow-lg py-1 z-[60]">
-                  {profileMenuItems.map((item) => (
-                    <button
-                      key={`profile-${item.key}`}
-                      onClick={() => go(item.path)}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-[var(--color-border)]/20"
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setMenuOpen(false);
+            if (user) {
+              const fallback = getAuthenticatedFallbackPath();
+              if (location.pathname !== fallback) navigate(fallback);
+            } else {
+              navigate("/");
+            }
+          }}
+          className="mr-[10px] font-semibold text-[var(--color-foreground)] truncate text-right"
+        >
+          NYZ Rating
+        </button>
       </div>
 
       {/* Lenyíló menü – keskeny, balra igazított sáv */}

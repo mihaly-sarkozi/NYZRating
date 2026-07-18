@@ -17,18 +17,6 @@ export function getModule(): FrontendModuleDefinition {
         loader: () => import("@frontend/features/platform-admin/pages/PlatformAdminDashboardPage"),
       },
       {
-        key: "platform-admin.statistics",
-        path: "/platform-admin/statistics",
-        layout: "public",
-        loader: () => import("@frontend/features/platform-admin/pages/PlatformAdminStatisticsPage"),
-      },
-      {
-        key: "platform-admin.statistics.tenant",
-        path: "/platform-admin/statistics/tenants/:tenantId",
-        layout: "public",
-        loader: () => import("@frontend/features/platform-admin/pages/PlatformAdminTenantStatisticsDetailPage"),
-      },
-      {
         key: "platform-admin.audit",
         path: "/platform-admin/audit",
         layout: "public",

@@ -20,6 +20,19 @@ export type PlatformAdminDebugDateResponse = {
   enabled: boolean;
   simulated_date?: string | null;
   current_date: string;
+  payment_simulation_outcome?: "success" | "failed" | string;
+};
+
+export type PlatformAdminBillingPaymentSimulationResponse = {
+  outcome: "success" | "failed" | string;
+  processed: number;
+  skipped: number;
+  details: Array<{
+    tenant_id: number;
+    slug: string;
+    invoice_id: number;
+    status: string;
+  }>;
 };
 
 export type PlatformAdminMfaStatusResponse = {
@@ -67,8 +80,13 @@ export type PlatformAdminStatisticsTenant = {
   } | null;
   package_code?: string | null;
   package_name?: string | null;
+  sms_monthly_max?: number;
+  sms_sent_this_month?: number;
+  sms_remaining?: number;
   billing_period?: string | null;
   subscription_status?: string | null;
+  /** Előfizetés rendezve eddig (ISO dátum, YYYY-MM-DD). */
+  paid_until?: string | null;
   domain_count: number;
   verified_domain_count: number;
   domains: Array<{
@@ -123,6 +141,9 @@ export type PlatformAdminStatisticsResponse = {
     paid_this_year_cents: number;
     expected_annual_revenue_cents: number;
     expected_average_monthly_revenue_cents: number;
+    sms_monthly_max: number;
+    sms_sent_this_month: number;
+    sms_remaining: number;
   };
   tenants: PlatformAdminStatisticsTenant[];
 };
@@ -164,45 +185,6 @@ export type PlatformAdminAuditTrailResponse = {
     is_active: boolean;
     timezone?: string | null;
   };
-};
-
-export type PlatformAdminTenantStatisticsDetail = {
-  tenant: {
-    id: number;
-    slug: string;
-    name: string;
-    is_active: boolean;
-    created_at?: string | null;
-    updated_at?: string | null;
-  };
-  billing: {
-    package_code?: string | null;
-    package_name?: string | null;
-    billing_period?: string | null;
-    status?: string | null;
-    current_period?: {
-      start_iso?: string | null;
-      end_iso?: string | null;
-    };
-    paid_total_cents: number;
-    paid_invoice_count: number;
-  };
-  domains: Array<{
-    domain: string;
-    verified: boolean;
-    verified_at?: string | null;
-    created_at?: string | null;
-  }>;
-  feature_flags: Record<string, unknown>;
-  limits: Record<string, unknown>;
-  usage: PlatformAdminStatisticsTenant["usage"];
-  monthly: Array<{
-    month: string;
-    questions: number;
-    training_chars: number;
-    training_runs: number;
-    usage_hours: number;
-  }>;
 };
 
 export type PlatformAdminSecurityMonitoringResponse = {

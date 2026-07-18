@@ -74,7 +74,7 @@ class TwoFactorSettingsState:
 
 @dataclass(frozen=True)
 class LocaleSettingsState:
-    timezone: Timezone = "UTC"
+    timezone: Timezone = "Europe/Budapest"
     date_format: DateFormat = "YYYY-MM-DD"
     time_format: TimeFormat = "HH:mm"
 
@@ -137,7 +137,7 @@ class SettingsState:
     """Backward-compatible aggregate settings response."""
 
     two_factor_enabled: bool = False
-    timezone: Timezone = "UTC"
+    timezone: Timezone = "Europe/Budapest"
     date_format: DateFormat = "YYYY-MM-DD"
     time_format: TimeFormat = "HH:mm"
     billing_customer_type: BillingCustomerType = "company"

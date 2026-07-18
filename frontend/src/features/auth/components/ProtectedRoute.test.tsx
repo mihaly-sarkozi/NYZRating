@@ -1,9 +1,14 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProtectedRoute from "./ProtectedRoute";
 import { useAuthStore, type User } from "../state/authStore";
+
+vi.mock("../../../utils/domain", () => ({
+  isTenantSubdomain: () => false,
+}));
 
 function renderProtected(
   auth: { token: string | null; user: User | null; loadingUser?: boolean },
@@ -15,20 +20,25 @@ function renderProtected(
     user: auth.user,
     loadingUser: auth.loadingUser ?? false,
   });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route
-          path={initialPath}
-          element={
-            <ProtectedRoute {...props}>
-              <div>Protected content</div>
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/login" element={<div>Login page</div>} />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route
+            path={initialPath}
+            element={
+              <ProtectedRoute {...props}>
+                <div>Protected content</div>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/login" element={<div>Login page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 

@@ -25,4 +25,5 @@ export const queryKeys = {
   billingOverview: ["billing", "overview"] as const,
   billingUpgradePreview: (planCode: string, billingPeriod: string) => ["billing", "upgradePreview", planCode, billingPeriod] as const,
   trafficOverview: ["traffic", "overview"] as const,
+  trafficSmsSends: ["traffic", "smsSends"] as const,
 } as const;

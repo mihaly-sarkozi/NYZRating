@@ -7,13 +7,12 @@ import { useBillingOverview } from "../hooks/useBilling";
 import {
   formatInvoiceDate,
   invoiceIsDownloadable,
-  localeTag,
-  moneyFromCents,
 } from "../billingInvoiceUtils";
 import Alert from "../../../components/ui/Alert";
 import Button from "../../../components/ui/Button";
 import PageHeader from "../../../components/ui/PageHeader";
 import { useLocaleSettings } from "../../settings/hooks/useSettings";
+import { formatForintAmount } from "../../../utils/moneyFormatting";
 
 function numberValue(value: unknown): number {
   const parsed = Number(value ?? 0);
@@ -24,26 +23,34 @@ const LIST_PAGE_SIZE = 10;
 
 function invoiceStatusLabel(status: unknown, t: (key: string) => string): string {
   const value = String(status ?? "").trim().toLowerCase();
-  if (value === "paid" || value === "simulated_paid") return t("billing.invoiceStatusPaid");
+  if (value === "paid" || value === "simulated_paid" || value === "manual_paid") return t("billing.invoiceStatusPaid");
+  if (value === "issued") return t("billing.invoiceStatusIssued");
   return t("billing.invoiceStatusFailed");
 }
 
 function invoiceStatusClass(status: unknown): string {
   const value = String(status ?? "").trim().toLowerCase();
-  if (value === "paid" || value === "simulated_paid") {
+  if (value === "paid" || value === "simulated_paid" || value === "manual_paid") {
     return "bg-[var(--color-success-bg)] text-[var(--color-success-text)] border border-[var(--color-success-border)]";
+  }
+  if (value === "issued") {
+    return "bg-[var(--color-card-muted)] text-[var(--color-foreground)] border border-[var(--color-border)]";
   }
   return "bg-[var(--color-danger-bg)] text-[var(--color-danger-text)] border border-[var(--color-danger-border)]";
 }
 
 function isBillingHistoryRow(invoice: Record<string, unknown>): boolean {
   const status = String(invoice.status ?? "").trim().toLowerCase();
-  return status === "paid" || status === "simulated_paid" || status === "payment_failed";
+  return status === "paid" || status === "simulated_paid" || status === "manual_paid" || status === "payment_failed" || status === "issued";
 }
 
 function isDownloadablePaidInvoice(invoice: Record<string, unknown>): boolean {
   const status = String(invoice.status ?? "").trim().toLowerCase();
-  return Boolean(invoice.id) && invoiceIsDownloadable(invoice) && (status === "paid" || status === "simulated_paid");
+  return (
+    Boolean(invoice.id) &&
+    invoiceIsDownloadable(invoice) &&
+    (status === "paid" || status === "simulated_paid" || status === "manual_paid")
+  );
 }
 
 function dateOnlyTime(value: unknown): number | null {
@@ -59,7 +66,9 @@ export default function BillingInvoicesPage() {
   const { t, locale } = useTranslation();
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const { data: billingOverview, isLoading, error: billingError } = useBillingOverview();
+  const { data: billingOverview, isLoading, isFetching, error: billingError } = useBillingOverview({
+    refetchOnMount: "always",
+  });
   const { data: settings } = useLocaleSettings({ enabled: user?.role === "owner" });
   const [visibleCount, setVisibleCount] = useState(LIST_PAGE_SIZE);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -138,7 +147,7 @@ export default function BillingInvoicesPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || (isFetching && !billingOverview)) {
     return (
       <div className="p-6 w-full min-h-full bg-[var(--color-background)] text-[var(--color-foreground)] flex justify-center">
         <div className="max-w-2xl text-center">{t("common.loading")}</div>
@@ -147,26 +156,6 @@ export default function BillingInvoicesPage() {
   }
 
   const estimated = billingOverview?.estimated_next_invoice ?? {};
-  const periodMultiplier = Math.max(1, Number(estimated.period_multiplier ?? 1) || 1);
-  const basePlanCents = Number(estimated.base_plan_cents ?? 0) || 0;
-  const recurringAddonsCents = Number(estimated.recurring_addons_cents ?? 0) || 0;
-  const nextExtraStorageGb = Math.max(0, Number(estimated.next_extra_storage_gb ?? 0) || 0);
-  const discountPercent = Math.max(0, Number(estimated.discount_percent ?? 0) || 0);
-  const basePlanMonthlyCents = periodMultiplier > 0 ? Math.round(basePlanCents / periodMultiplier) : basePlanCents;
-  const recurringAddonsMonthlyCents =
-    periodMultiplier > 0 ? Math.round(recurringAddonsCents / periodMultiplier) : recurringAddonsCents;
-  const amountLocale = localeTag(locale);
-  const formatCyclePart = (cents: number) =>
-    `${periodMultiplier} x ${(cents / 100).toLocaleString(amountLocale, {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    })} €`;
-  const monthlyBreakdown = formatCyclePart(basePlanMonthlyCents);
-  const recurringBreakdown = formatCyclePart(recurringAddonsMonthlyCents);
-  const totalLabel =
-    discountPercent > 0
-      ? `${t("billing.totalEstimated")} (${t("billing.discountPercent")} ${discountPercent}%)`
-      : t("billing.totalEstimated");
   const dueAtLabel = estimated.due_at_iso
     ? formatInvoiceDate(estimated.due_at_iso, locale, settings?.timezone, settings?.date_format)
     : "—";
@@ -176,12 +165,13 @@ export default function BillingInvoicesPage() {
   const paymentWarning = (billingOverview?.payment_warning as Record<string, unknown> | null | undefined) ?? null;
   const subscription = (billingOverview?.subscription as Record<string, unknown>) ?? {};
   const subscriptionStatus = String(subscription.status ?? "active").toLowerCase();
+  const isTrial = subscriptionStatus === "trial";
   const hasPaymentIssue = invoiceDueOverdue || Boolean(paymentWarning) || subscriptionStatus === "restricted";
   const isHealthyStatus = (subscriptionStatus === "active" || subscriptionStatus === "trial") && !hasPaymentIssue;
   const statusTitle =
     hasPaymentIssue
       ? t("billing.invoiceStatusFailed")
-      : subscriptionStatus === "trial"
+      : isTrial
       ? t("billing.statusTrialTitle")
       : isHealthyStatus
         ? t("billing.statusScheduledTitle")
@@ -189,7 +179,7 @@ export default function BillingInvoicesPage() {
   const statusSummary =
     hasPaymentIssue
       ? t("billing.statusRestrictedSummary")
-      : subscriptionStatus === "trial"
+      : isTrial
       ? t("billing.statusTrialSummary")
       : isHealthyStatus
         ? t("billing.statusHealthySummary")
@@ -201,7 +191,7 @@ export default function BillingInvoicesPage() {
   const statusPanelClass = isHealthyStatus
     ? "rounded-2xl border border-[var(--color-success-border)] bg-[var(--color-card)]/70 p-4"
     : "rounded-2xl border border-[var(--color-danger-border)] bg-[var(--color-card)]/70 p-4";
-  const totalDisplay = `${numberValue(estimated.total).toFixed(2)} €`;
+  const totalDisplay = `${formatForintAmount(numberValue(estimated.total), locale)} Ft`;
 
   return (
     <div className="app-page">
@@ -209,7 +199,7 @@ export default function BillingInvoicesPage() {
         <PageHeader
           eyebrow={t("billing.overviewLabel")}
           title={t("billing.pageTitle")}
-          description={t("billing.pageIntro")}
+          description={isTrial ? t("billing.pageIntroTrial") : t("billing.pageIntro")}
           actions={isHealthyStatus ? (
             <Button onClick={() => navigate("/admin/pricing")}>{t("nav.packages")}</Button>
           ) : null}
@@ -219,7 +209,8 @@ export default function BillingInvoicesPage() {
           <Alert tone="error">{billingErrMsg}</Alert>
         ) : null}
 
-        <section className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
+        <section className={isTrial ? "grid gap-6" : "grid gap-6 lg:grid-cols-[1.4fr_0.9fr]"}>
+          {!isTrial ? (
           <div className="app-surface p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -238,42 +229,8 @@ export default function BillingInvoicesPage() {
                 <p className="mt-1 text-sm text-[var(--color-foreground)]">{t("billing.highlightInvoiceDescription")}</p>
               </div>
             </div>
-
-            <div className="app-surface-muted mt-6 space-y-4 p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-foreground)]">
-                    {t("billing.linePlan")} <span className="text-[var(--color-muted)]">({monthlyBreakdown})</span>
-                  </p>
-                  <p className="text-sm text-[var(--color-muted)]">{t("billing.linePlanHint")}</p>
-                </div>
-                <p className="text-lg font-semibold text-[var(--color-foreground)]">{moneyFromCents(estimated.base_plan_cents)} €</p>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 border-t border-[var(--color-border)] pt-4">
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-foreground)]">
-                    {t("billing.lineRecurringAddons")} <span className="text-[var(--color-muted)]">({recurringBreakdown})</span>
-                  </p>
-                  <p className="text-sm text-[var(--color-muted)]">{t("billing.lineRecurringAddonsHint")}</p>
-                  <p className="text-xs text-[var(--color-muted)]">
-                    {t("billing.nextStorageAddonGb").replace("{{gb}}", String(nextExtraStorageGb))}
-                  </p>
-                </div>
-                <p className="text-lg font-semibold text-[var(--color-foreground)]">{moneyFromCents(estimated.recurring_addons_cents)} €</p>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 border-t border-[var(--color-border)] pt-4">
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-foreground)]">{totalLabel}</p>
-                  <p className="text-sm text-[var(--color-success-text)]">
-                    {discountPercent > 0 ? t("billing.discountApplied") : t("billing.noDiscountApplied")}
-                  </p>
-                </div>
-                <p className="text-2xl font-semibold text-[var(--color-foreground)]">{totalDisplay}</p>
-              </div>
-            </div>
           </div>
+          ) : null}
 
           <aside className={statusAsideClass}>
             <p className={`text-sm font-medium ${statusMutedClass}`}>{t("billing.statusLabel")}</p>
@@ -285,37 +242,24 @@ export default function BillingInvoicesPage() {
                 <p className="mt-1 font-medium">{statusSummary}</p>
               </div>
             </div>
-            <div className="mt-auto pt-6">
-              {hasPaymentIssue ? (
-                <div className="space-y-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => navigate("/admin/szamlak/kiegyenlites")}
-                    fullWidth
-                    size="lg"
-                    className="!border-black !bg-black !text-white hover:!bg-black/90"
-                  >
-                    {t("billing.settlePayment")}
-                  </Button>
-                </div>
-              ) : null}
-
-              {isHealthyStatus ? (
+            {hasPaymentIssue ? (
+              <div className="mt-auto space-y-2 pt-6">
                 <Button
                   type="button"
-                  onClick={() => navigate("/admin/pricing")}
-                  variant="primary"
+                  variant="secondary"
+                  onClick={() => navigate("/admin/szamlak/kiegyenlites")}
                   fullWidth
                   size="lg"
+                  className="!border-black !bg-black !text-white hover:!bg-black/90"
                 >
-                  {t("billing.managePaymentCta")}
+                  {t("billing.settlePayment")}
                 </Button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
           </aside>
         </section>
 
+        {!isTrial ? (
         <section className="app-surface p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -368,7 +312,7 @@ export default function BillingInvoicesPage() {
                             </span>
                           ) : null}
                         </div>
-                        <div className="font-medium text-[var(--color-foreground)]">{Number(invoice.total ?? 0).toFixed(2)} €</div>
+                        <div className="font-medium text-[var(--color-foreground)]">{formatForintAmount(Number(invoice.total ?? 0), locale)} Ft</div>
                         <div>
                           {canDownload ? (
                             <Button
@@ -391,6 +335,7 @@ export default function BillingInvoicesPage() {
             )}
           </div>
         </section>
+        ) : null}
 
       </div>
     </div>

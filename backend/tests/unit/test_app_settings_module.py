@@ -41,7 +41,7 @@ def test_settings_module_registers_facade_service() -> None:
     module.register(context)
 
     facade = context.get_service(SETTINGS_SERVICE)
-    assert facade.get_settings()["timezone"] == "UTC"
+    assert facade.get_settings()["timezone"] == "Europe/Budapest"
 
 
 def test_settings_module_declares_expected_contract() -> None:

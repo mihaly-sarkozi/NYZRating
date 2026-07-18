@@ -15,7 +15,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 
 def money_label(cents: int) -> str:
-    return f"{(int(cents or 0) / 100):,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"{(int(cents or 0) / 100):,.2f} Ft".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def render_invoice_pdf_document(
@@ -90,7 +90,15 @@ def render_invoice_pdf_document(
     net_total = int(round(int(invoice.total_cents or 0) / 1.27)) if int(invoice.total_cents or 0) > 0 else 0
     tax_total = int(invoice.total_cents or 0) - net_total
     for line in lines or [{"name": invoice.description, "quantity": 1, "total_cents": invoice.total_cents}]:
-        quantity = int(line.get("quantity") or 1)
+        period_multiplier = max(1, int(line.get("period_multiplier") or 1))
+        raw_quantity = int(line.get("quantity") or 0)
+        # Negyedéves/éves: a mennyiség a hónapok száma. Régi számlákon quantity=1 mellett period_multiplier lehet helyes.
+        if raw_quantity > 1:
+            quantity = raw_quantity
+        elif period_multiplier > 1:
+            quantity = period_multiplier
+        else:
+            quantity = max(1, raw_quantity or 1)
         gross = int(line.get("total_cents") or invoice.total_cents or 0)
         unit = int(line.get("unit_price_cents") or (gross // max(1, quantity)))
         table_rows.append(

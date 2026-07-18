@@ -10,12 +10,13 @@ import { useTranslation } from "../../../i18n";
 import { queryKeys } from "../../../queryKeys";
 import { useAuthStore } from "../../../store/authStore";
 import { getApiErrorMessage } from "../../../utils/getApiErrorMessage";
+import { formatForintFromCents } from "../../../utils/moneyFormatting";
 import { useBillingOverview } from "../hooks/useBilling";
 
-function moneyLabel(cents: unknown): string {
+function moneyLabel(cents: unknown, locale: string): string {
   const value = Number(cents ?? 0);
-  if (!Number.isFinite(value)) return "0.00 €";
-  return `${(value / 100).toFixed(2)} €`;
+  if (!Number.isFinite(value)) return `${formatForintFromCents(0, locale)} Ft`;
+  return `${formatForintFromCents(value, locale)} Ft`;
 }
 
 function invoiceIssuedAtMs(invoice: Record<string, unknown>): number {
@@ -25,7 +26,7 @@ function invoiceIssuedAtMs(invoice: Record<string, unknown>): number {
 }
 
 export default function BillingSettleCheckoutPage() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -57,18 +58,21 @@ export default function BillingSettleCheckoutPage() {
 
   const estimated = billingOverview?.estimated_next_invoice ?? {};
   const invoices = Array.isArray(billingOverview?.invoices) ? billingOverview.invoices : [];
-  const latestFailedInvoice = invoices
-    .filter((invoice) => String((invoice as Record<string, unknown>).status ?? "").trim().toLowerCase() === "payment_failed")
+  const latestUnpaidInvoice = invoices
+    .filter((invoice) => {
+      const status = String((invoice as Record<string, unknown>).status ?? "").trim().toLowerCase();
+      return status === "payment_failed" || status === "issued";
+    })
     .sort((a, b) => invoiceIssuedAtMs(b as Record<string, unknown>) - invoiceIssuedAtMs(a as Record<string, unknown>))[0] as
     | Record<string, unknown>
     | undefined;
-  const failedTotalCentsRaw = Number(latestFailedInvoice?.total_cents ?? 0);
-  const failedTotalCents =
-    Number.isFinite(failedTotalCentsRaw) && failedTotalCentsRaw > 0
-      ? failedTotalCentsRaw
-      : Math.max(0, Math.round(Number(latestFailedInvoice?.total ?? 0) * 100));
+  const unpaidTotalCentsRaw = Number(latestUnpaidInvoice?.total_cents ?? 0);
+  const unpaidTotalCents =
+    Number.isFinite(unpaidTotalCentsRaw) && unpaidTotalCentsRaw > 0
+      ? unpaidTotalCentsRaw
+      : Math.max(0, Math.round(Number(latestUnpaidInvoice?.total ?? 0) * 100));
   const estimatedTotalCents = Number(estimated.total_cents ?? 0) || 0;
-  const totalCents = failedTotalCents > 0 ? failedTotalCents : estimatedTotalCents;
+  const totalCents = unpaidTotalCents > 0 ? unpaidTotalCents : estimatedTotalCents;
   const submitDisabled = saving || !acceptTerms || !cardNumber.trim() || !cardExpiry.trim() || !cardCvc.trim();
 
   const handleSubmit = async (event: FormEvent) => {
@@ -77,9 +81,15 @@ export default function BillingSettleCheckoutPage() {
     setSaving(true);
     setError(null);
     try {
-      await api.post("/billing/subscription/settle");
+      const res = await api.post<{ status?: string; message?: string }>("/billing/subscription/settle");
+      const status = String(res.data?.status ?? "").trim().toLowerCase();
+      if (status === "payment_failed" || status === "failed") {
+        setError(res.data?.message || t("common.errorGeneric"));
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview });
       await queryClient.invalidateQueries({ queryKey: queryKeys.billingAccessStatus });
+      await queryClient.refetchQueries({ queryKey: queryKeys.billingOverview });
       navigate("/admin/szamlak");
     } catch (err) {
       setError(getApiErrorMessage(err) ?? t("common.errorGeneric"));
@@ -102,7 +112,7 @@ export default function BillingSettleCheckoutPage() {
         <section className="app-surface p-6">
           <div className="flex items-center justify-between gap-4">
             <span className="text-sm text-[var(--color-muted)]">{t("billing.settleCheckoutAmount")}</span>
-            <span className="text-2xl font-semibold tabular-nums">{moneyLabel(totalCents)}</span>
+            <span className="text-2xl font-semibold tabular-nums">{moneyLabel(totalCents, locale)}</span>
           </div>
         </section>
 

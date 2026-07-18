@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "../../../i18n";
 import { useAuthStore } from "../state/authStore";
 import { getSafeLoginRedirect } from "../../../utils/loginRedirect";
@@ -9,6 +9,8 @@ import { useDefaultSettings, useLoginMutation } from "../hooks/useAuth";
 import type { Locale } from "../../../i18n";
 import Alert from "../../../components/ui/Alert";
 import Button from "../../../components/ui/Button";
+import { isTenantSubdomain } from "../../../utils/domain";
+import { fetchBillingAccessStatus } from "../../billing/hooks/useBilling";
 
 const LOGIN_REMEMBER_EMAIL_KEY = "NYZRating_login_remember_email";
 const LOGIN_COOLDOWN_SECONDS = 30;
@@ -22,19 +24,39 @@ export default function Login() {
   const setLocaleAndTheme = useLocaleStore((s) => s.setLocaleAndTheme);
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
-  const { data: defaultSettings } = useDefaultSettings({ enabled: !token });
+  const onTenantHost = isTenantSubdomain();
+  const { data: defaultSettings } = useDefaultSettings({ enabled: !token && onTenantHost });
   const demoToken = searchParams.get("demo_token");
 
   useEffect(() => {
     if (!demoToken) return;
-    navigate(`/demo-login?token=${encodeURIComponent(demoToken)}`, { replace: true });
+    navigate(`/install-login?token=${encodeURIComponent(demoToken)}`, { replace: true });
   }, [demoToken, navigate]);
 
   useEffect(() => {
-    if (token && user) {
-      navigate(returnTo, { replace: true });
-    }
-  }, [token, user, returnTo, navigate]);
+    if (!(token && user)) return;
+    let cancelled = false;
+    void (async () => {
+      if (!onTenantHost) {
+        if (!cancelled) navigate(returnTo, { replace: true });
+        return;
+      }
+      try {
+        const access = await fetchBillingAccessStatus();
+        if (cancelled) return;
+        if (access.billing_lock) {
+          navigate(access.redirect_path || "/admin/szamlak/kiegyenlites", { replace: true });
+          return;
+        }
+      } catch {
+        // Access status hiba esetén a szokásos returnTo-ra megyünk.
+      }
+      if (!cancelled) navigate(returnTo, { replace: true });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user, returnTo, navigate, onTenantHost]);
 
   useEffect(() => {
     if (!defaultSettings) return;
@@ -46,7 +68,6 @@ export default function Login() {
   const handleLoginSuccess = async (access_token: string) => {
     setToken(access_token);
     await loadUser();
-    navigate(returnTo);
   };
 
   const [email, setEmail] = useState(() => {
@@ -80,6 +101,11 @@ export default function Login() {
     }, 1000);
     return () => clearInterval(id);
   }, [cooldownSecondsRemaining]);
+
+  // Fő domainen a /login = platform admin belépés.
+  if (!onTenantHost) {
+    return <Navigate to="/platform-admin/login" replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

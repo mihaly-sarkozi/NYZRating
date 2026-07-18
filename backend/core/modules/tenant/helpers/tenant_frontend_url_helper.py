@@ -9,6 +9,17 @@ from fastapi import Request
 from core.kernel.config.config_loader import settings
 
 
+def tenant_frontend_base_url_by_slug(slug: str) -> str:
+    """Tenant frontend base URL request nélkül (háttérfolyamatok, emailek)."""
+    normalized = str(slug or "").strip().lower()
+    scheme = "https" if getattr(settings, "cookie_secure", False) else "http"
+    base = f"{scheme}://{normalized}.{settings.tenant_base_domain}"
+    port = getattr(settings, "frontend_set_password_port", None)
+    if port is not None:
+        base = f"{base}:{port}"
+    return base
+
+
 # Tenant frontend base URL kiszámítása a request és a tenant alapján
 def tenant_frontend_base_url_for_slug(request: Request, slug: str) -> str:
     """Frontend base URL számítása adott tenant slughoz."""

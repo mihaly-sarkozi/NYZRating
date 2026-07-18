@@ -1,10 +1,11 @@
 import type { SettingsDateFormat, SettingsTimezone } from "../../api/services/settingsService";
 import { formatDateOnly, localeTag } from "../../utils/dateTimeFormatting";
+import { formatForintFromCents } from "../../utils/moneyFormatting";
 
-export function moneyFromCents(cents: unknown): string {
+export function moneyFromCents(cents: unknown, locale = "hu"): string {
   const n = Number(cents ?? 0);
-  if (Number.isNaN(n)) return "0.00";
-  return (n / 100).toFixed(2);
+  if (Number.isNaN(n)) return formatForintFromCents(0, locale);
+  return formatForintFromCents(n, locale);
 }
 
 export { localeTag };
@@ -70,7 +71,7 @@ export function downloadInvoiceSummary(invoice: Record<string, unknown>, periodL
     `type: ${invoice.invoice_type ?? ""}`,
     `period_key: ${invoice.period_key ?? ""}`,
     `status: ${invoice.status ?? ""}`,
-    `currency: ${invoice.currency ?? "EUR"}`,
+    `currency: ${invoice.currency ?? "HUF"}`,
     `total: ${Number(invoice.total ?? 0).toFixed(2)}`,
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });

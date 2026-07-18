@@ -134,13 +134,6 @@ def login(
             status_code=429,
             detail=_presenter.detail_for_lang(ErrorCode.TWO_FACTOR_TOO_MANY_ATTEMPTS, lang),
         )
-    except ValueError as e:
-        if str(e) == "authenticator_required_setup":
-            raise HTTPException(
-                status_code=403,
-                detail="Admin és owner felhasználónak az Authenticator beállítása kötelező a belépéshez (próbaidőszakon kívül).",
-            ) from e
-        raise
     except Exception as e:
         _log.exception("auth login failed unexpectedly: %s", e)
         detail = _presenter.detail_for_lang(ErrorCode.LOGIN_ERROR, lang)

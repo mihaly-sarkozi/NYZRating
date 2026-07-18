@@ -44,8 +44,6 @@ PENDING_2FA_EXPIRE_MINUTES = 10
 
 
 class LoginService(TransactionalServiceMixin):
-    _ROLE_AUTHENTICATOR_REQUIRED = {"admin", "owner", "platform_admin"}
-
     # Ez a metódus a Python-specifikus speciális működést valósítja meg.
     def __init__(
         self,
@@ -181,28 +179,11 @@ class LoginService(TransactionalServiceMixin):
         # Jelszó jó: nullázzuk a sikertelen próbálkozások számát
         self.user_repository.reset_failed_login(user.id, updated_by=user.id)
 
-        user_role = str(getattr(user, "role", "") or "").strip().lower()
-        require_authenticator_now = user_role in self._ROLE_AUTHENTICATOR_REQUIRED and not bool(tenant.trial_active)
         authenticator_secret = self.user_authenticator_repository.get_enabled_secret(user.id)
-
-        if require_authenticator_now and not authenticator_secret:
-            increment_metric(
-                "platform.auth.failure.count",
-                1.0,
-                tags={"flow": "login", "reason": "authenticator_required_not_configured"},
-            )
-            self.audit.log(
-                AuditLogAction.LOGIN_FAILED,
-                user_id=user.id,
-                details={"reason": "authenticator_required_not_configured", "email": user.email},
-                ip=ip,
-                user_agent=ua,
-            )
-            raise ValueError("authenticator_required_setup")
 
         # Ha nincs semmilyen aktív 2FA kihívás (globális 2FA kikapcsolva, és authenticator sincs),
         # akkor azonnal beléptetés.
-        if not self.two_factor_settings.is_two_factor_enabled() and not require_authenticator_now and not authenticator_secret:
+        if not self.two_factor_settings.is_two_factor_enabled() and not authenticator_secret:
             increment_metric("platform.auth.success.count", 1.0, tags={"flow": "login"})
             self.logger.login_successful_login(user.id, ip, ua, **ctx)
             self.audit.log(AuditLogAction.LOGIN_SUCCESS, user_id=user.id, details={"email": user.email, "2fa": False}, ip=ip, user_agent=ua)

@@ -1,49 +1,74 @@
-%PDF-1.4
+%PDF-1.3
+%“Œ‹ž ReportLab Generated PDF document http://www.reportlab.com
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<<
+/F1 2 0 R /F2 3 0 R
+>>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+<<
+/BaseFont /Helvetica /Encoding /WinAnsiEncoding /Name /F1 /Subtype /Type1 /Type /Font
+>>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+<<
+/BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding /Name /F2 /Subtype /Type1 /Type /Font
+>>
 endobj
 4 0 obj
-<< /Length 654 >>
-stream
-BT
-/F1 16 Tf
-72 730 Td
-(BrainBankCenter - Politica de privacidad) Tj
-0 -28 Td
-/F1 11 Tf
-(Tratamos tu nombre y tu direccion de correo para crear y operar tu entorno demo.) Tj
-0 -18 Td
-(Estos datos se usan solo para el onboarding demo, el envio del enlace de acceso y el uso del sistema.) Tj
-0 -18 Td
-(El enlace demo contiene un token firmado y caduca exactamente despues de siete dias.) Tj
-0 -18 Td
-(No pedimos tarjeta bancaria para iniciar la demo.) Tj
-0 -18 Td
-(El flujo final para continuar o eliminar los datos demo se definira mas adelante.) Tj
-0 -18 Td
-(Si tienes preguntas, ponte en contacto con el operador del servicio BrainBankCenter.) Tj
-ET
-endstream
+<<
+/Contents 8 0 R /MediaBox [ 0 0 595.2756 841.8898 ] /Parent 7 0 R /Resources <<
+/Font 1 0 R /ProcSet [ /PDF /Text /ImageB /ImageC /ImageI ]
+>> /Rotate 0 /Trans <<
+
+>> 
+  /Type /Page
+>>
 endobj
 5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+<<
+/PageMode /UseNone /Pages 7 0 R /Type /Catalog
+>>
+endobj
+6 0 obj
+<<
+/Author (anonymous) /CreationDate (D:20260718104115+00'00') /Creator (ReportLab PDF Library - www.reportlab.com) /Keywords () /ModDate (D:20260718104115+00'00') /Producer (ReportLab PDF Library - www.reportlab.com) 
+  /Subject (unspecified) /Title (untitled) /Trapped /False
+>>
+endobj
+7 0 obj
+<<
+/Count 1 /Kids [ 4 0 R ] /Type /Pages
+>>
+endobj
+8 0 obj
+<<
+/Filter [ /ASCII85Decode /FlateDecode ] /Length 540
+>>
+stream
+GasJO9lJc?%#46L'g-A$QW6fPFY/]GL18e_fkube'ML++OQ9gHpERAEFq8:q5S,?$cc_Z\K00%e\G?L#d))-Q%U9,'&`!?E*nkP:Df<X?")^9AGDg'j]1[uT".PicCq%#.Zk5Jarq['gY]>&AcgY4$Y3Z`%6(dt3Sca_.d%6p/oE%jn)Ze,tJCSB9Zl(A`.8U7?&eCDgYO)F)nt%-FbY-5,csoQ7R4rE:oTXKnWKaFD,aoQ]nQO2-g?^0O^/RN*['^GR"VVU7/dU`-dQoPlleBS=>)^mtNFKL04de(tSr0HdN=JC[e(r5I.oEfUMKiFqH961^5@[/[5>l&b.Qg"^B1d.(*&3flO($BId3&!qXEnB#8j?-,]nOQ0N9(N>C?F$@H:!2'$"6"p76"]GQl5pn`JHbD+?Fm_!:/b;<C=fE3/Iu<fNfh>?)9i&M;$'K:UKK3SArj4Fea._o-5#9ob+[Q2m@Lq$2]op1p6'>V5GJ:/@WuaRA;0u!-N/NGC0Pe`.I&ik(WA/3u+-3M)c8frW+"$#g<~>endstream
 endobj
 xref
-0 6
+0 9
 0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000241 00000 n 
-0000000946 00000 n 
+0000000073 00000 n 
+0000000114 00000 n 
+0000000221 00000 n 
+0000000333 00000 n 
+0000000536 00000 n 
+0000000604 00000 n 
+0000000900 00000 n 
+0000000959 00000 n 
 trailer
-<< /Size 6 /Root 1 0 R >>
+<<
+/ID 
+[<69b554b86706326dab61f700a211672f><69b554b86706326dab61f700a211672f>]
+% ReportLab generated PDF document -- digest (http://www.reportlab.com)
+
+/Info 6 0 R
+/Root 5 0 R
+/Size 9
+>>
 startxref
-1016
+1589
 %%EOF

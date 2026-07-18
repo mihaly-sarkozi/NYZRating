@@ -262,7 +262,7 @@ def test_get_settings_returns_mapped_core_snapshot() -> None:
 
     assert payload == {
         "two_factor_enabled": False,
-        "timezone": "UTC",
+        "timezone": "Europe/Budapest",
         "date_format": "YYYY-MM-DD",
         "time_format": "HH:mm",
         **BILLING_DEFAULTS,
@@ -276,7 +276,7 @@ def test_get_settings_coerces_defaults_for_partial_core_snapshot() -> None:
 
     assert payload == {
         "two_factor_enabled": True,
-        "timezone": "UTC",
+        "timezone": "Europe/Budapest",
         "date_format": "YYYY-MM-DD",
         "time_format": "HH:mm",
         **BILLING_DEFAULTS,
@@ -327,26 +327,21 @@ def test_split_two_factor_settings_delegates_to_core_service() -> None:
     assert payload == {"two_factor_enabled": True}
 
 
-def test_split_locale_settings_delegates_to_core_service() -> None:
+def test_split_locale_settings_returns_fixed_values() -> None:
     core = _CoreSettingsService()
     facade = SettingsFacade(core_settings_service=core)
 
     payload = facade.update_locale_settings(
-        timezone="Europe/Budapest",
+        timezone="UTC",
         date_format="DD.MM.YYYY",
         time_format="HH:mm:ss",
         updated_by=7,
     )
 
-    assert core.update_calls == [
-        {
-            "timezone": "Europe/Budapest",
-            "date_format": "DD.MM.YYYY",
-            "time_format": "HH:mm:ss",
-            "updated_by": 7,
-        }
-    ]
+    assert core.update_calls == []
     assert payload["timezone"] == "Europe/Budapest"
+    assert payload["date_format"] == "YYYY-MM-DD"
+    assert payload["time_format"] == "HH:mm"
 
 
 def test_split_billing_settings_validates_and_delegates_to_core_service() -> None:

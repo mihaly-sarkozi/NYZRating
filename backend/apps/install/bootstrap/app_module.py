@@ -4,15 +4,15 @@ from core.kernel.interface import BaseAppModule, ModuleContext
 from core.kernel.interface.app_conventions import module_key
 
 
-class DemoAppModule(BaseAppModule):
-    key = module_key("demo")
+class InstallAppModule(BaseAppModule):
+    key = module_key("install")
 
     def register(self, container: ModuleContext) -> None:
         return None
 
 
 def get_module() -> BaseAppModule:
-    return DemoAppModule()
+    return InstallAppModule()
 
 
-__all__ = ["DemoAppModule", "get_module"]
+__all__ = ["InstallAppModule", "get_module"]

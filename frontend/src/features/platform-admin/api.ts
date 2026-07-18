@@ -4,11 +4,11 @@ import type {
   PlatformAdminLoginResponse,
   PlatformAdminStatisticsResponse,
   PlatformAdminSecurityMonitoringResponse,
-  PlatformAdminTenantStatisticsDetail,
   PlatformAdminTenant,
   PlatformAdminAuditTrailResponse,
   PlatformAdminUser,
   PlatformAdminDebugDateResponse,
+  PlatformAdminBillingPaymentSimulationResponse,
   PlatformAdminMfaStatusResponse,
   PlatformAdminMfaSetupResponse,
   PlatformAdminMfaConfirmResponse,
@@ -107,16 +107,36 @@ export async function fetchActivePlatformTenants(): Promise<PlatformAdminTenant[
   });
 }
 
-export async function fetchPlatformAdminStatistics(): Promise<PlatformAdminStatisticsResponse> {
+export async function fetchPlatformAdminTenants(): Promise<PlatformAdminTenant[]> {
   return withPlatformAdminRefresh(async () => {
-    const res = await api.get<PlatformAdminStatisticsResponse>("/platform-admin/statistics/overview", { headers: authHeaders() });
+    const res = await api.get<PlatformAdminTenant[]>("/platform-admin/tenants", { headers: authHeaders() });
     return res.data;
   });
 }
 
-export async function fetchPlatformAdminTenantStatistics(tenantId: number): Promise<PlatformAdminTenantStatisticsDetail> {
+export async function setPlatformAdminSmsQuota(tenantId: number, smsQuota: number): Promise<{
+  tenant_id: number;
+  slug: string;
+  name?: string | null;
+  sms_quota: number;
+  available_total: number;
+  remaining_total?: number;
+  used_total?: number;
+}> {
+  await fetchPlatformAdminCsrfToken();
   return withPlatformAdminRefresh(async () => {
-    const res = await api.get<PlatformAdminTenantStatisticsDetail>(`/platform-admin/statistics/tenants/${tenantId}`, { headers: authHeaders() });
+    const res = await api.post(
+      "/platform-admin/debug/sms-quota",
+      { tenant_id: tenantId, sms_quota: smsQuota },
+      { headers: authHeaders() }
+    );
+    return res.data;
+  });
+}
+
+export async function fetchPlatformAdminStatistics(): Promise<PlatformAdminStatisticsResponse> {
+  return withPlatformAdminRefresh(async () => {
+    const res = await api.get<PlatformAdminStatisticsResponse>("/platform-admin/statistics/overview", { headers: authHeaders() });
     return res.data;
   });
 }
@@ -125,6 +145,13 @@ export async function restorePlatformAdminTenant(tenantId: number, confirmName: 
   await fetchPlatformAdminCsrfToken();
   await withPlatformAdminRefresh(async () => {
     await api.post(`/platform-admin/tenants/${tenantId}/restore`, { confirm_name: confirmName }, { headers: authHeaders() });
+  });
+}
+
+export async function activatePlatformAdminTenant(tenantId: number, confirmName: string): Promise<void> {
+  await fetchPlatformAdminCsrfToken();
+  await withPlatformAdminRefresh(async () => {
+    await api.post(`/platform-admin/tenants/${tenantId}/activate`, { confirm_name: confirmName }, { headers: authHeaders() });
   });
 }
 
@@ -208,12 +235,18 @@ export async function fetchPlatformAdminDebugDate(): Promise<PlatformAdminDebugD
   });
 }
 
-export async function updatePlatformAdminDebugDate(simulatedDate: string | null): Promise<PlatformAdminDebugDateResponse> {
+export async function updatePlatformAdminDebugDate(
+  simulatedDate: string | null,
+  paymentSimulationOutcome?: "success" | "failed"
+): Promise<PlatformAdminDebugDateResponse> {
   await fetchPlatformAdminCsrfToken();
   return withPlatformAdminRefresh(async () => {
     const res = await api.put<PlatformAdminDebugDateResponse>(
       "/platform-admin/debug/simulated-date",
-      { simulated_date: simulatedDate },
+      {
+        simulated_date: simulatedDate,
+        ...(paymentSimulationOutcome ? { payment_simulation_outcome: paymentSimulationOutcome } : {}),
+      },
       { headers: authHeaders() }
     );
     return res.data;

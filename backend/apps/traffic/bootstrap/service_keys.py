@@ -1,6 +1,9 @@
 # backend/apps/traffic/bootstrap/service_keys.py
-# Feladat: A traffic app service registry kulcsait definiálja. Ezekkel kéri el a router a modul saját application service-ét.
+# Feladat: A traffic app module.* service registry kulcsait definiálja.
+# Sárközi Mihály - 2026.07.18
 
-TRAFFIC_SERVICE = "apps.traffic.service"
+from core.kernel.interface.app_keys import module_service_key
+
+TRAFFIC_SERVICE = module_service_key("traffic")
 
 __all__ = ["TRAFFIC_SERVICE"]

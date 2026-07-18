@@ -19,6 +19,7 @@ from core.modules.tenant.schema.service import drop_tenant_schema
 from core.kernel.config.config_loader import settings
 from core.kernel.runtime.clock import utc_now
 from core.kernel.logging.observability import get_metrics_snapshot
+from apps.billing.calculations import current_month_period
 from admin.domain.admin_models import (
     PlatformAdminMfaAttemptORM,
     PlatformSecurityAlertORM,
@@ -611,6 +612,23 @@ class PlatformAdminRepository:
             invalidate_tenant_cache(tenant.slug)
             return {"id": int(tenant.id), "slug": tenant.slug, "name": tenant.name, "is_active": True}
 
+    def activate_inactive_tenant(self, tenant_id: int, *, updated_by: int | None = None) -> dict | None:
+        """Inaktív (pl. tartozás miatti) tenant újraaktiválása, hogy beléphessen és fizethessen."""
+        with self._sf() as db:
+            tenant = db.query(TenantORM).filter(TenantORM.id == int(tenant_id)).first()
+            if tenant is None:
+                return None
+            if bool(tenant.is_active):
+                raise ValueError("tenant_already_active")
+            latest = self._latest_cancellation_by_tenant(db).get(int(tenant_id))
+            if latest is not None and str(latest.get("status") or "").lower() == "deactivation_requested":
+                raise ValueError("tenant_is_temporary_deleted")
+            tenant.is_active = True
+            tenant.updated_by = updated_by
+            db.commit()
+            invalidate_tenant_cache(tenant.slug)
+            return {"id": int(tenant.id), "slug": tenant.slug, "name": tenant.name, "is_active": True}
+
     def permanently_delete_cancelled_tenant(self, tenant_id: int, *, deleted_by: int | None = None) -> dict | None:
         engine = getattr(self._sf, "engine", None)
         if engine is None:
@@ -689,19 +707,72 @@ class PlatformAdminRepository:
             **training,
         }
 
-    def _plan_names(self, db) -> dict[str, str]:
+    def _plan_catalog(self, db) -> dict[str, dict]:
         if not self._table_exists(db, "public.billing_catalog_entries"):
             return {}
         rows = db.execute(
             text(
                 """
-                SELECT code, name
+                SELECT code, name, included
                 FROM public.billing_catalog_entries
                 WHERE entry_type = 'plan'
                 """
             )
         ).mappings().all()
-        return {str(row["code"]): str(row["name"]) for row in rows}
+        catalog: dict[str, dict] = {}
+        for row in rows:
+            included = row["included"] or {}
+            if isinstance(included, str):
+                try:
+                    included = json.loads(included)
+                except Exception:
+                    included = {}
+            if not isinstance(included, dict):
+                included = {}
+            catalog[str(row["code"])] = {
+                "name": str(row["name"]),
+                "sms_monthly_max": int(included.get("questions_monthly") or 0),
+            }
+        return catalog
+
+    def _plan_names(self, db) -> dict[str, str]:
+        return {code: str(meta.get("name") or code) for code, meta in self._plan_catalog(db).items()}
+
+    def _sms_sent_this_month_by_tenant(self, db) -> dict[int, int]:
+        """Aktuális billing periódusban kiküldött SMS-ek tenantonként."""
+        period_key, *_ = current_month_period(utc_now())
+        counts: dict[int, int] = {}
+        if self._table_exists(db, "public.traffic_sms_sends"):
+            rows = db.execute(
+                text(
+                    """
+                    SELECT tenant_id, COUNT(*) AS cnt
+                    FROM public.traffic_sms_sends
+                    WHERE period_key = :period_key
+                    GROUP BY tenant_id
+                    """
+                ),
+                {"period_key": period_key},
+            ).mappings().all()
+            for row in rows:
+                counts[int(row["tenant_id"])] = int(row["cnt"] or 0)
+            return counts
+        # Fallback: forgalmi kérdés/SMS keret felhasználás az aktuális periódusra.
+        if self._table_exists(db, "public.traffic_question_usage"):
+            rows = db.execute(
+                text(
+                    """
+                    SELECT tenant_id, COALESCE(SUM(question_count), 0) AS cnt
+                    FROM public.traffic_question_usage
+                    WHERE period_key = :period_key
+                    GROUP BY tenant_id
+                    """
+                ),
+                {"period_key": period_key},
+            ).mappings().all()
+            for row in rows:
+                counts[int(row["tenant_id"])] = int(row["cnt"] or 0)
+        return counts
 
     @staticmethod
     def _billing_period_discount_percent(billing_period: str | None) -> int:
@@ -1653,9 +1724,10 @@ class PlatformAdminRepository:
         tenants = self.list_tenants()
         rows = []
         with self._sf() as db:
-            plan_names = self._plan_names(db)
+            plan_catalog = self._plan_catalog(db)
             cancellation_by_tenant = self._latest_cancellation_by_tenant(db)
             qdrant_client = self._build_qdrant_client()
+            sms_sent_by_tenant = self._sms_sent_this_month_by_tenant(db)
             for tenant in tenants:
                 tenant_id = int(tenant.id)
                 domains = db.execute(
@@ -1678,10 +1750,23 @@ class PlatformAdminRepository:
                 qdrant_metrics = self._qdrant_collection_stats(qdrant_client, schema_metrics["qdrant_collection_names"])
                 subscription = billing["subscription"] or {}
                 package_code = subscription.get("plan_code") or (config["package"] if config else "free")
-                package_name = plan_names.get(str(package_code), str(package_code or "free"))
+                plan_meta = plan_catalog.get(str(package_code)) or {}
+                package_name = str(plan_meta.get("name") or package_code or "free")
+                sms_monthly_max = int(plan_meta.get("sms_monthly_max") or 0)
+                if sms_monthly_max <= 0:
+                    limits = dict(config["limits"] or {}) if config else {}
+                    sms_monthly_max = int(limits.get("questions_monthly") or 0)
+                sms_sent_this_month = int(sms_sent_by_tenant.get(tenant_id) or 0)
+                addon_carryover = int(subscription.get("carryover_addon_questions") or 0)
+                sms_available = sms_monthly_max + addon_carryover
+                sms_remaining = max(0, sms_available - sms_sent_this_month)
                 file_bytes = int(schema_metrics["file_bytes"] or billing["storage_bytes"] or 0)
                 database_bytes = int(schema_metrics["database_bytes"] or 0)
                 qdrant_bytes = int(qdrant_metrics["qdrant_bytes"] or 0)
+                # Tenant összes lekérdezés: séma query log elsődleges, billing fallback.
+                schema_queries = int(schema_metrics["query_count"] or 0)
+                billing_questions = int(billing["question_count"] or 0)
+                questions = schema_queries if schema_queries > 0 else billing_questions
                 cancellation = cancellation_by_tenant.get(tenant_id)
                 lifecycle_status = "active" if bool(tenant.is_active) else "inactive"
                 if (
@@ -1690,6 +1775,13 @@ class PlatformAdminRepository:
                     and str(cancellation.get("status") or "").lower() == "deactivation_requested"
                 ):
                     lifecycle_status = "temporary_deleted"
+                period_bounds = self._period_bounds(subscription, tenant.created_at)
+                paid_until_iso = period_bounds["end_iso"]
+                trial_ends_at = subscription.get("trial_ends_at")
+                if isinstance(trial_ends_at, datetime):
+                    paid_until_iso = trial_ends_at.date().isoformat()
+                elif isinstance(trial_ends_at, date):
+                    paid_until_iso = trial_ends_at.isoformat()
                 rows.append(
                     {
                         "id": tenant_id,
@@ -1701,8 +1793,12 @@ class PlatformAdminRepository:
                         "cancellation_request": cancellation,
                         "package_code": package_code,
                         "package_name": package_name,
+                        "sms_monthly_max": sms_monthly_max,
+                        "sms_sent_this_month": sms_sent_this_month,
+                        "sms_remaining": sms_remaining,
                         "billing_period": subscription.get("billing_period"),
                         "subscription_status": subscription.get("status"),
+                        "paid_until": paid_until_iso,
                         "domains": [
                             {
                                 "domain": row["domain"],
@@ -1717,10 +1813,10 @@ class PlatformAdminRepository:
                         "feature_flags": dict(config["feature_flags"] or {}) if config else {},
                         "limits": dict(config["limits"] or {}) if config else {},
                         "usage": {
-                            "questions": int(billing["question_count"] or schema_metrics["query_count"] or 0),
-                            "schema_queries": int(schema_metrics["query_count"] or 0),
+                            "questions": questions,
+                            "schema_queries": schema_queries,
                             "trained_chars": int(billing["trained_chars"] or 0),
-                            "storage_bytes": file_bytes + database_bytes + qdrant_bytes,
+                            "storage_bytes": file_bytes + database_bytes,
                             "file_bytes": file_bytes,
                             "database_bytes": database_bytes,
                             "qdrant_bytes": qdrant_bytes,
@@ -1738,6 +1834,7 @@ class PlatformAdminRepository:
                         },
                     }
                 )
+            revenue = self._billing_revenue_metrics(db)
         totals = {
             "tenants": len(rows),
             "active_tenants": sum(1 for row in rows if row["is_active"]),
@@ -1756,7 +1853,10 @@ class PlatformAdminRepository:
             "training_items": sum(int(row["usage"]["training_items"] or 0) for row in rows),
             "domains": sum(int(row["domain_count"] or 0) for row in rows),
             "verified_domains": sum(int(row["verified_domain_count"] or 0) for row in rows),
-            **self._billing_revenue_metrics(db),
+            "sms_monthly_max": sum(int(row.get("sms_monthly_max") or 0) for row in rows),
+            "sms_sent_this_month": sum(int(row.get("sms_sent_this_month") or 0) for row in rows),
+            "sms_remaining": sum(int(row.get("sms_remaining") or 0) for row in rows),
+            **revenue,
         }
         return {"summary": totals, "tenants": rows}
 

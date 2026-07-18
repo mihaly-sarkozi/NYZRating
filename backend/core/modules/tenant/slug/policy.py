@@ -12,10 +12,26 @@ SUPPORTED_DEMO_LOCALES = {"hu", "en", "es"}
 
 
 def demo_slug_base(raw_name: str) -> str:
+    """Cégnévből tenant slug alap: ékezetmentes, kisbetűs, szóhatárok kötőjellel."""
     normalized = unicodedata.normalize("NFKD", raw_name or "")
     ascii_name = normalized.encode("ascii", "ignore").decode("ascii").lower()
-    letters_only = re.sub(r"[^a-z]", "", ascii_name)
-    return (letters_only or "demo")[:48]
+    hyphenated = re.sub(r"[^a-z0-9]+", "-", ascii_name).strip("-")
+    hyphenated = re.sub(r"-{2,}", "-", hyphenated)
+    return (hyphenated or "demo")[:48]
+
+
+def slug_matches_demo_base(slug: str, base: str) -> bool:
+    """True, ha a slug a base vagy base+szám (pl. pelda-kft, pelda-kft2)."""
+    normalized_slug = (slug or "").strip().lower()
+    normalized_base = (base or "").strip().lower()
+    if not normalized_slug or not normalized_base:
+        return False
+    if normalized_slug == normalized_base:
+        return True
+    if not normalized_slug.startswith(normalized_base):
+        return False
+    suffix = normalized_slug[len(normalized_base) :]
+    return bool(suffix) and suffix.isdigit()
 
 
 def candidate_demo_slug(base: str, suffix: int) -> str:

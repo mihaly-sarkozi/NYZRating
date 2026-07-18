@@ -214,6 +214,8 @@ def register_billing_routes(
     ):
         try:
             content, filename = svc.render_invoice_pdf(tenant, invoice_id)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return Response(

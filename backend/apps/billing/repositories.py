@@ -64,14 +64,37 @@ class BillingRepository:
             row = db.query(BillingDebugStateORM).first()
             return row.simulated_date if row is not None else None
 
+    def get_debug_payment_simulation_outcome(self) -> str:
+        with self._sf() as db:
+            db.execute(text("SET search_path TO public"))
+            row = db.query(BillingDebugStateORM).first()
+            if row is None:
+                return "success"
+            outcome = str(getattr(row, "payment_simulation_outcome", None) or "success").strip().lower()
+            return outcome if outcome in {"success", "failed"} else "success"
+
     def set_debug_simulated_date(self, value: date | None) -> None:
         with self._sf() as db:
             db.execute(text("SET search_path TO public"))
             row = db.query(BillingDebugStateORM).first()
             if row is None:
-                db.add(BillingDebugStateORM(id=1, simulated_date=value))
+                db.add(BillingDebugStateORM(id=1, simulated_date=value, payment_simulation_outcome="success"))
             else:
                 row.simulated_date = value
+                row.updated_at = _utcnow()
+            db.commit()
+
+    def set_debug_payment_simulation_outcome(self, outcome: str) -> None:
+        normalized = str(outcome or "").strip().lower()
+        if normalized not in {"success", "failed"}:
+            raise ValueError("payment_simulation_outcome must be success or failed")
+        with self._sf() as db:
+            db.execute(text("SET search_path TO public"))
+            row = db.query(BillingDebugStateORM).first()
+            if row is None:
+                db.add(BillingDebugStateORM(id=1, simulated_date=None, payment_simulation_outcome=normalized))
+            else:
+                row.payment_simulation_outcome = normalized
                 row.updated_at = _utcnow()
             db.commit()
 
@@ -521,6 +544,85 @@ class BillingRepository:
                 .first()
             )
 
+    def get_latest_open_subscription_invoice(self, tenant_id: int) -> BillingInvoiceORM | None:
+        """Legutóbbi kiegyenlítetlen havi díjbekérő (status=issued)."""
+        with self._sf() as db:
+            db.execute(text("SET search_path TO public"))
+            return (
+                db.query(BillingInvoiceORM)
+                .filter(
+                    BillingInvoiceORM.tenant_id == tenant_id,
+                    BillingInvoiceORM.invoice_type == "monthly_subscription",
+                    BillingInvoiceORM.status == "issued",
+                )
+                .order_by(BillingInvoiceORM.issued_at.desc())
+                .first()
+            )
+
+    def update_invoice_payment_status(
+        self,
+        invoice_id: int,
+        *,
+        status: str,
+        payment_method: str | None = None,
+        invoice_type: str | None = None,
+        lines: list[dict[str, Any]] | None = None,
+    ) -> BillingInvoiceORM | None:
+        with self._sf() as db:
+            db.execute(text("SET search_path TO public"))
+            row = db.query(BillingInvoiceORM).filter(BillingInvoiceORM.id == int(invoice_id)).first()
+            if row is None:
+                return None
+            row.status = status
+            if payment_method is not None:
+                row.payment_method = payment_method
+            if invoice_type is not None:
+                row.invoice_type = invoice_type
+            if lines is not None:
+                row.lines = lines
+            db.commit()
+            db.refresh(row)
+            return row
+
+    def get_latest_unpaid_debt_invoice(self, tenant_id: int) -> BillingInvoiceORM | None:
+        """Legutóbbi kiegyenlítetlen tartozás: issued díjbekérő vagy payment_failed."""
+        with self._sf() as db:
+            db.execute(text("SET search_path TO public"))
+            open_issued = (
+                db.query(BillingInvoiceORM)
+                .filter(
+                    BillingInvoiceORM.tenant_id == tenant_id,
+                    BillingInvoiceORM.invoice_type == "monthly_subscription",
+                    BillingInvoiceORM.status == "issued",
+                )
+                .order_by(BillingInvoiceORM.issued_at.desc())
+                .first()
+            )
+            failed = (
+                db.query(BillingInvoiceORM)
+                .filter(
+                    BillingInvoiceORM.tenant_id == tenant_id,
+                    BillingInvoiceORM.status == "payment_failed",
+                    BillingInvoiceORM.invoice_type.in_(("monthly_subscription", "monthly_subscription_failed")),
+                )
+                .order_by(BillingInvoiceORM.issued_at.desc())
+                .first()
+            )
+            if open_issued is None:
+                return failed
+            if failed is None:
+                return open_issued
+            try:
+                return open_issued if open_issued.issued_at >= failed.issued_at else failed
+            except TypeError:
+                a = open_issued.issued_at.replace(tzinfo=None) if open_issued.issued_at else None
+                b = failed.issued_at.replace(tzinfo=None) if failed.issued_at else None
+                if a is None:
+                    return failed
+                if b is None:
+                    return open_issued
+                return open_issued if a >= b else failed
+
     def record_payment_event_once(
         self,
         *,
@@ -559,3 +661,8 @@ class BillingRepository:
         with self._sf() as db:
             db.execute(text("SET search_path TO public"))
             return db.query(TenantORM).filter(TenantORM.is_active.is_(True)).all()
+
+    def list_all_tenants(self) -> list[TenantORM]:
+        with self._sf() as db:
+            db.execute(text("SET search_path TO public"))
+            return db.query(TenantORM).all()

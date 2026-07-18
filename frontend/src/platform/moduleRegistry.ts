@@ -1,5 +1,9 @@
-import { getModule as getDemoModule } from "@apps/demo/web/module";
+import { getModule as getBillingModule } from "@apps/billing/web/module";
+import { getModule as getInstallModule } from "@apps/install/web/module";
+import { getModule as getLandingModule } from "@apps/landing/web/module";
+import { getModule as getPackagesModule } from "@apps/packages/web/module";
 import { getModule as getSettingsModule } from "@apps/settings/web/module";
+import { getModule as getTrafficModule } from "@apps/traffic/web/module";
 import { getModule as getAuthModule } from "./modules/authModule";
 import { getModule as getPlatformAdminModule } from "./modules/platformAdminModule";
 import { getModule as getUsersModule } from "./modules/usersModule";
@@ -7,10 +11,14 @@ import { getModule as getUsersModule } from "./modules/usersModule";
 import type { FrontendModuleDefinition, FrontendUser, ModuleMenuDefinition, ModuleRouteDefinition } from "./moduleTypes";
 
 const modules: FrontendModuleDefinition[] = [
-  getDemoModule(),
+  getLandingModule(),
+  getInstallModule(),
   getAuthModule(),
   getPlatformAdminModule(),
   getUsersModule(),
+  getTrafficModule(),
+  getBillingModule(),
+  getPackagesModule(),
   getSettingsModule(),
 ];
 

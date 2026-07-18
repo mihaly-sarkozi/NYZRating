@@ -3,13 +3,16 @@ import {
   BILLING_COUNTRIES,
   BILLING_COUNTRY_OTHER,
   BILLING_REGIONS_BY_COUNTRY,
+  FIXED_BILLING_COUNTRY,
   getEuVatPlaceholder,
   getBillingCountryOptions,
   isEuBillingCountry,
   isRegionRequired,
   isValidEuVatId,
   isValidEuropeanBillingCountry,
+  isValidHuTaxId,
   normalizeEuVatId,
+  normalizeHuTaxId,
   normalizePostalCode,
 } from "./billingCountries";
 
@@ -18,6 +21,7 @@ describe("billingCountries", () => {
     expect(BILLING_COUNTRIES.some((country) => country.code === "HU" && country.eu)).toBe(true);
     expect(BILLING_COUNTRIES.some((country) => country.code === "CH" && !country.eu)).toBe(true);
     expect(BILLING_COUNTRIES.find((country) => country.code === BILLING_COUNTRY_OTHER)?.disabled).toBe(true);
+    expect(FIXED_BILLING_COUNTRY).toBe("HU");
   });
 
   it("localizes country names by active locale", () => {
@@ -41,6 +45,17 @@ describe("billingCountries", () => {
   it("normalizes postal codes and EU VAT IDs", () => {
     expect(normalizePostalCode("h-1111!")).toBe("H-1111");
     expect(normalizeEuVatId("hu 12.34-5678")).toBe("HU12345678");
+  });
+
+  it("normalizes and validates hungarian tax IDs", () => {
+    expect(normalizeHuTaxId("12892312-1-42")).toBe("12892312-1-42");
+    expect(normalizeHuTaxId("hu 12892312142")).toBe("12892312-1-42");
+    expect(normalizeHuTaxId("12892312")).toBe("12892312");
+    expect(isValidHuTaxId("12892312-1-42")).toBe(true);
+    expect(isValidHuTaxId("12892312142")).toBe(true);
+    expect(isValidHuTaxId("HU12892312")).toBe(false);
+    expect(isValidHuTaxId("12892312")).toBe(false);
+    expect(isValidHuTaxId("123")).toBe(false);
   });
 
   it("validates EU VAT IDs by country code", () => {

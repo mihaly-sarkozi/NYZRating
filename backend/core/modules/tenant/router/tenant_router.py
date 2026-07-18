@@ -140,10 +140,11 @@ def tenant_signup(
     _ensure_demo_signup_redis_or_503()
     email = (body.email or "").strip()
     name = (body.name or "").strip()
+    company_name = (body.company_name or "").strip() or name
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="Érvényes email szükséges.")
-    if not name:
-        raise HTTPException(status_code=400, detail="A név kötelező.")
+    if not company_name:
+        raise HTTPException(status_code=400, detail="A cégnév kötelező.")
     _verify_signup_captcha_or_raise(request, body.captcha_token)
     _DEMO_EXISTS_DETAIL = {
         "reason": "demo_exists",
@@ -156,10 +157,10 @@ def tenant_signup(
         result = service.signup(
             email=email,
             kb_name=(body.kb_name or "").strip() or None,
-            name=name,
+            name=name or company_name,
             locale=(body.locale or "").strip().lower() or None,
             resend_existing_access=body.resend_existing_access,
-            company_name=(body.company_name or "").strip() or None,
+            company_name=company_name,
             address=(body.address or "").strip() or None,
             phone=(body.phone or "").strip() or None,
             plan_code=(body.plan_code or "free").strip().lower() or "free",

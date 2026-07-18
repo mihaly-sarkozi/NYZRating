@@ -21,6 +21,8 @@ export interface ModuleRouteDefinition {
   layout?: ModuleLayoutSlot;
   requiresAuth?: boolean;
   requiredPermission?: string;
+  /** Ha meg van adva, csak ezek a szerepkörök érhetik el a route-ot. */
+  allowedRoles?: FrontendRole[];
   loader?: () => Promise<{ default: ComponentType }>;
   redirectTo?: string;
   redirectState?: unknown;
@@ -32,6 +34,8 @@ export interface ModuleMenuDefinition {
   labelKey: string;
   requiresAuth?: boolean;
   requiredPermission?: string;
+  /** Ha meg van adva, csak ezek a szerepkörök látják a menüpontot. */
+  allowedRoles?: FrontendRole[];
   /** Kisebb szám = felül a hamburger menüben. */
   order?: number;
 }
