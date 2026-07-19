@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from core.kernel.deps.registry import (
     configure_kernel_dependencies,
     factory_dependency,
@@ -25,6 +27,16 @@ from core.kernel.deps.registry import (
     repository_dependency,
     service_dependency,
 )
+
+if TYPE_CHECKING:
+    from core.kernel.http.tenant_dependencies import (
+        OptionalTenantContextDep,
+        RequestTenantContext,
+        RequiredTenantContextDep,
+        get_tenant_context,
+        require_tenant_context,
+        set_tenant_context_from_request,
+    )
 
 _HTTP_EXPORTS = {
     "OptionalTenantContextDep",
