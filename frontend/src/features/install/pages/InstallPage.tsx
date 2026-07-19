@@ -15,7 +15,12 @@ function generateSessionId(): string {
   return `install-${Date.now()}-${randomPart}`;
 }
 
-function createFreshInstallSessionId(): string {
+function getOrCreateInstallSessionId(): string {
+  const existing = sessionStorage.getItem(INSTALL_SESSION_STORAGE_KEY)?.trim();
+  if (existing) {
+    return existing;
+  }
+
   const generated = generateSessionId();
   sessionStorage.setItem(INSTALL_SESSION_STORAGE_KEY, generated);
   return generated;
@@ -34,8 +39,8 @@ export default function InstallPage() {
 
   const submitInstall = async (resendExistingAccess: boolean): Promise<InstallSignupResponse> => {
     const company = companyName.trim();
-    // Minden kísérletnél friss session, hogy a slug a aktuális cégnévből képződjön.
-    const sessionId = createFreshInstallSessionId();
+    // Ugyanaz a session a retry/resend alatt → slug foglalás idempotens marad.
+    const sessionId = getOrCreateInstallSessionId();
     const res = await installSignup({
       email: email.trim(),
       name: company,
@@ -47,6 +52,7 @@ export default function InstallPage() {
       billing_period: "monthly",
       demo_session_id: sessionId,
     });
+    sessionStorage.removeItem(INSTALL_SESSION_STORAGE_KEY);
     const params = new URLSearchParams();
     params.set("email", email.trim());
     if (resendExistingAccess) params.set("resent", "1");

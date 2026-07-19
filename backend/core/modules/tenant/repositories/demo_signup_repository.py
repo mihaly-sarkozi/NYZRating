@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 
 DEMO_SESSION_TABLE = "public.demo_signup_sessions"
 DEMO_BLOCKLIST_TABLE = "public.demo_signup_blocklist"
@@ -65,25 +64,23 @@ class DemoSignupRepository:
 
     def reserve_slug(self, *, session_id: str, requested_name: str, email: str, tenant_slug: str) -> bool:
         self.ensure_session_table()
-        try:
-            with self._engine.begin() as conn:
-                conn.execute(
-                    text(
-                        f"""
-                        INSERT INTO {DEMO_SESSION_TABLE} (session_id, requested_name, email, tenant_slug)
-                        VALUES (:session_id, :requested_name, :email, :tenant_slug)
-                        """
-                    ),
-                    {
-                        "session_id": session_id,
-                        "requested_name": requested_name,
-                        "email": email,
-                        "tenant_slug": tenant_slug,
-                    },
-                )
-            return True
-        except IntegrityError:
-            return False
+        with self._engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    f"""
+                    INSERT INTO {DEMO_SESSION_TABLE} (session_id, requested_name, email, tenant_slug)
+                    VALUES (:session_id, :requested_name, :email, :tenant_slug)
+                    ON CONFLICT DO NOTHING
+                    """
+                ),
+                {
+                    "session_id": session_id,
+                    "requested_name": requested_name,
+                    "email": email,
+                    "tenant_slug": tenant_slug,
+                },
+            )
+        return int(getattr(result, "rowcount", 0) or 0) == 1
 
     def save_pending_verification(
         self,
