@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "nyzrating"
 version = "0.1.0"
 description = "NYZRating alkalmazás"
-readme = "../START.md"
+readme = "START.md"
 requires-python = ">=3.10,<3.14"
 
 [project.optional-dependencies]
