@@ -28,13 +28,13 @@ class ObjectStorageConfig:
 
 def load_object_storage_config() -> ObjectStorageConfig:
     return ObjectStorageConfig(
-        enabled=bool(getattr(settings, "object_storage_enabled", True)),
+        enabled=bool(getattr(settings, "object_storage_enabled", False)),
         provider=str(getattr(settings, "object_storage_provider", "s3_compatible") or "s3_compatible"),
-        endpoint=str(getattr(settings, "object_storage_endpoint", "http://localhost:9000") or "http://localhost:9000"),
+        endpoint=str(getattr(settings, "object_storage_endpoint", "") or ""),
         region=str(getattr(settings, "object_storage_region", "us-east-1") or "us-east-1"),
         access_key=str(getattr(settings, "object_storage_access_key", "") or ""),
         secret_key=str(getattr(settings, "object_storage_secret_key", "") or ""),
-        bucket=str(getattr(settings, "object_storage_bucket", "test-bucket-nyzrating") or "test-bucket-nyzrating"),
+        bucket=str(getattr(settings, "object_storage_bucket", "") or ""),
         secure=bool(getattr(settings, "object_storage_secure", False)),
         force_path_style=bool(getattr(settings, "object_storage_force_path_style", True)),
     )

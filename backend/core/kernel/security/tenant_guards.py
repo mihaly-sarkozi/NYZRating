@@ -72,36 +72,9 @@ def validate_pii_legacy_plaintext_hardening(env: str) -> None:
         )
 
 
-def validate_object_storage_hardening(settings: object, env: str) -> None:
-    """Az object storage opcionális, helyi fájltárolás is használható."""
+def validate_object_storage_hardening(_settings: object, _env: str) -> None:
+    """Object storage opcionális; nincs kötelező MinIO/S3 hardening."""
     return
-
-    if not is_deployed_env(env):
-        return
-    if not bool(getattr(settings, "object_storage_enabled", True)):
-        raise SecurityConfigError("Staging/production környezetben object_storage_enabled=true kötelező.")
-    provider = str(getattr(settings, "object_storage_provider", "") or "").strip().lower()
-    if provider != "s3_compatible":
-        raise SecurityConfigError(
-            "Staging/production környezetben csak explicit S3/MinIO/GCS-kompatibilis object storage provider engedélyezett "
-            "(object_storage_provider=s3_compatible)."
-        )
-    endpoint = str(getattr(settings, "object_storage_endpoint", "") or "").strip()
-    bucket = str(getattr(settings, "object_storage_bucket", "") or "").strip()
-    if not endpoint:
-        raise SecurityConfigError("Staging/production környezetben object_storage_endpoint kötelező.")
-    if not bucket:
-        raise SecurityConfigError("Staging/production környezetben object_storage_bucket kötelező.")
-    if not bool(getattr(settings, "object_storage_secure", False)):
-        raise SecurityConfigError(
-            "Staging/production környezetben object_storage_secure=true (TLS) kötelező az object storage kapcsolathoz."
-        )
-    access_key = str(getattr(settings, "object_storage_access_key", "") or "").strip()
-    secret_key = str(getattr(settings, "object_storage_secret_key", "") or "").strip()
-    if not access_key or not secret_key:
-        raise SecurityConfigError(
-            "Staging/production környezetben object_storage_access_key és object_storage_secret_key kötelező."
-        )
 
 
 __all__ = [

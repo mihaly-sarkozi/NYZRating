@@ -161,15 +161,16 @@ class BaseConfig(BaseSettings):
     ws_chat_max_connections_per_tenant: int = 20
     ws_chat_max_connections_per_user: int = 3
 
-    # LLM abuse guard: tenant + channel scoped budget
+    # LLM / chat opcionális — NYZ Rating jelenleg nem használja.
     openai_api_key: str = ""
-    chat_provider: str
-    chat_model: str
-    ollama_url: str
-    ollama_model: str = "qwen2.5:7b-instruct"
-    ollama_api_key: str = "ollama"
-    qdrant_url: str
-    qdrant_api_key: str
+    chat_provider: str = ""
+    chat_model: str = ""
+    ollama_url: str = ""
+    ollama_model: str = ""
+    ollama_api_key: str = ""
+    # Qdrant opcionális (nincs compose service); üres = nincs vector store.
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
     qdrant_timeout_sec: int = 120
     llm_budget_request_limit_per_minute: int = 120
     llm_budget_prompt_chars_per_minute: int = 120000
@@ -302,14 +303,14 @@ class BaseConfig(BaseSettings):
     kb_debug_trace_persist: bool = True
     kb_debug_trace_path: str = "logs/retrieval_traces.jsonl"
 
-    # Object storage (knowledge fájlok és mellékletek).
-    object_storage_enabled: bool = True
+    # Object storage opcionális (MinIO/S3 nincs a compose-ban).
+    object_storage_enabled: bool = False
     object_storage_provider: str = "s3_compatible"
-    object_storage_endpoint: str
+    object_storage_endpoint: str = ""
     object_storage_region: str = "us-east-1"
     object_storage_access_key: str = ""
     object_storage_secret_key: str = ""
-    object_storage_bucket: str
+    object_storage_bucket: str = ""
     object_storage_secure: bool = False
     object_storage_force_path_style: bool = True
 

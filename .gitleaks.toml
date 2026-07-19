@@ -4,8 +4,6 @@ title = "NYZRating Gitleaks Config"
   description = "Tesztkörnyezeti dummy értékek"
   regexes = [
     "test-secret-with-enough-length-[0-9]+",
-    "test-openai-api-key",
-    "test-qdrant-key",
   ]
   paths = [
     "backend/tests/",

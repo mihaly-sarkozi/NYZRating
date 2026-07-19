@@ -1,3 +1,3 @@
-"""Fizikai infrastruktúra adapterek (MinIO, Qdrant, …)."""
+"""Fizikai infrastruktúra adapterek."""
 
 __all__: list[str] = []

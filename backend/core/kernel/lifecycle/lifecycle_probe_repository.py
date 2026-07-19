@@ -66,7 +66,7 @@ class LifecycleProbeRepository:
 
     def check_object_storage(self) -> str:
         env = normalize_app_env()
-        enabled = bool(getattr(settings, "object_storage_enabled", True))
+        enabled = bool(getattr(settings, "object_storage_enabled", False))
         provider = str(getattr(settings, "object_storage_provider", "") or "").strip().lower()
         endpoint = str(getattr(settings, "object_storage_endpoint", "") or "").strip()
         bucket = str(getattr(settings, "object_storage_bucket", "") or "").strip()
