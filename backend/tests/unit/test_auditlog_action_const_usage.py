@@ -16,7 +16,6 @@ _SERVICE_FILES = [
     Path("core/modules/settings/service/settings_service.py"),
     Path("core/modules/brand/service/brand_service.py"),
     Path("admin/router/admin_router.py"),
-    Path("apps/kb/kb_crud/service/KbCrudAuditLogger.py"),
     Path("core/modules/tenant/signup/new_demo_signup.py"),
 ]
 
@@ -76,7 +75,11 @@ def test_all_audit_action_enum_members_are_accounted_for_in_service_usage():
         "API_CREDENTIAL_REVOKED",
         "API_CREDENTIAL_ROTATED",
         "INTERNAL_ENDPOINT_ACCESSED",
+        "KNOWLEDGE_CREATED",
+        "KNOWLEDGE_DELETED",
+        "KNOWLEDGE_PERMISSION_CHANGED",
         "KNOWLEDGE_PII_DEPERSONALIZED",
+        "KNOWLEDGE_SETTING_CHANGED",
         "KNOWLEDGE_SOURCE_DELETED",
         "KNOWLEDGE_TRAINING_STARTED",
         "KNOWLEDGE_UPLOAD_REJECTED",

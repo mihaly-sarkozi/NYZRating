@@ -218,10 +218,10 @@ def test_prod_bootstrap_fails_when_legacy_plaintext_pii_read_is_enabled():
             run_kernel_security_guards(_settings(), "production")
 
 
-def test_prod_bootstrap_fails_when_object_storage_is_disabled():
+def test_prod_bootstrap_allows_disabled_object_storage():
+    """Object storage opcionális; local fájltárolás is megengedett productionben."""
     with prod_env(JWT_SECRET="0123456789abcdef" * 4):
-        with pytest.raises(SecurityConfigError, match="object_storage_enabled"):
-            run_kernel_security_guards(_settings(object_storage_enabled=False), "production")
+        run_kernel_security_guards(_settings(object_storage_enabled=False), "production")
 
 
 def test_prod_bootstrap_fails_when_tenant_base_domain_is_local():

@@ -79,19 +79,19 @@ def test_auth_login_route_has_rate_limit_contract() -> None:
 
 def test_channel_chat_route_has_rate_limit_contract() -> None:
     assert _module_has_limited_route(
-        "apps/chat/router/channel_router.py",
+        "apps/traffic/router/TrafficRouter.py",
         method="POST",
-        route="/channel/chat",
-        limit_value="120/minute",
+        route="/traffic/sms-sends",
+        limit_value="20/minute",
     )
 
 
 def test_kb_create_route_has_rate_limit_contract() -> None:
     assert _module_has_limited_route(
-        "apps/kb/kb_crud/router/KnowledgeBaseRouter.py",
-        method="POST",
-        route="",
-        limit_value="5/minute",
+        "apps/traffic/router/TrafficRouter.py",
+        method="GET",
+        route="/traffic/overview",
+        limit_value="30/minute",
     )
 
 

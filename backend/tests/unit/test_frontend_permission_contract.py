@@ -28,6 +28,8 @@ def _collect_frontend_required_permissions() -> set[str]:
     ]
     permissions: set[str] = set()
     for file_path in targets:
+        if file_path.name.endswith((".test.ts", ".test.tsx")) or ".test." in file_path.name:
+            continue
         content = file_path.read_text(encoding="utf-8")
         permissions.update(match.strip() for match in _REQUIRED_PERMISSION_PATTERN.findall(content) if match.strip())
         permissions.update(match.strip() for match in _HAS_USER_PERMISSION_PATTERN.findall(content) if match.strip())

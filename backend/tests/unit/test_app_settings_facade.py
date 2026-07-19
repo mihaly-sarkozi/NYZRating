@@ -344,6 +344,9 @@ def test_split_locale_settings_returns_fixed_values() -> None:
     assert payload["time_format"] == "HH:mm"
 
 
+VALID_HU_TAX = "12892312-1-42"
+
+
 def test_split_billing_settings_validates_and_delegates_to_core_service() -> None:
     core = _CoreSettingsService()
     validator = _VatValidator(valid=True)
@@ -352,7 +355,7 @@ def test_split_billing_settings_validates_and_delegates_to_core_service() -> Non
     payload = facade.update_billing_settings(
         billing_customer_type="company",
         billing_company_name="Example Kft.",
-        billing_tax_id="HU12345678",
+        billing_tax_id=VALID_HU_TAX,
         billing_address_line="Fo utca 1.",
         billing_postal_code="1051",
         billing_city="Budapest",
@@ -365,16 +368,17 @@ def test_split_billing_settings_validates_and_delegates_to_core_service() -> Non
             "billing_customer_type": "company",
             "billing_full_name": "",
             "billing_company_name": "Example Kft.",
-            "billing_tax_id": "HU12345678",
+            "billing_tax_id": VALID_HU_TAX,
             "billing_address_line": "Fo utca 1.",
             "billing_postal_code": "1051",
             "billing_city": "Budapest",
-            "billing_region": None,
+            "billing_region": "",
             "billing_country": "HU",
             "updated_by": 7,
         }
     ]
     assert payload["billing_company_name"] == "Example Kft."
+    assert validator.calls == []
 
 
 def test_update_settings_preserves_other_fields_for_partial_update() -> None:
@@ -418,7 +422,7 @@ def test_update_settings_accepts_valid_company_billing_payload() -> None:
     payload = facade.update_settings(
         billing_customer_type="company",
         billing_company_name="Acme Kft.",
-        billing_tax_id="hu 12345678",
+        billing_tax_id="12892312-1-42",
         billing_country="HU",
         billing_postal_code="1111",
         billing_city="Budapest",
@@ -426,29 +430,30 @@ def test_update_settings_accepts_valid_company_billing_payload() -> None:
         updated_by=5,
     )
 
-    assert validator.calls == [("HU", "HU12345678")]
+    # A HU adószámot formátumellenőrzéssel validáljuk; EU VIES hívás jelenleg nincs.
+    assert validator.calls == []
     assert payload["billing_customer_type"] == "company"
-    assert core.update_calls[-1]["billing_tax_id"] == "HU12345678"
+    assert core.update_calls[-1]["billing_tax_id"] == VALID_HU_TAX
 
 
-def test_update_settings_accepts_valid_private_billing_payload() -> None:
+def test_update_settings_rejects_private_billing_payload() -> None:
     core = _MergingCoreSettingsService()
     facade = SettingsFacade(core_settings_service=core)
 
-    payload = facade.update_settings(
-        billing_customer_type="private",
-        billing_full_name="Teszt Elek",
-        billing_country="CH",
-        billing_region="Zürich",
-        billing_postal_code="8000",
-        billing_city="Zürich",
-        billing_address_line="Main street 1.",
-        updated_by=6,
-    )
+    with pytest.raises(Exception) as exc:
+        facade.update_settings(
+            billing_customer_type="private",
+            billing_full_name="Teszt Elek",
+            billing_country="CH",
+            billing_region="Zürich",
+            billing_postal_code="8000",
+            billing_city="Zürich",
+            billing_address_line="Main street 1.",
+            updated_by=6,
+        )
 
-    assert payload["billing_customer_type"] == "private"
-    assert core.update_calls[-1]["billing_company_name"] == ""
-    assert core.update_calls[-1]["billing_tax_id"] == ""
+    assert getattr(exc.value, "status_code") == 422
+    assert "company" in str(getattr(exc.value, "detail", "")).lower()
 
 
 @pytest.mark.parametrize(
@@ -469,7 +474,7 @@ def test_update_settings_rejects_invalid_billing_payloads(payload: dict[str, str
     assert getattr(exc.value, "status_code") == status_code
 
 
-def test_update_settings_rejects_invalid_vies_result() -> None:
+def test_update_settings_rejects_invalid_hu_tax_id() -> None:
     facade = SettingsFacade(
         core_settings_service=_MergingCoreSettingsService(),
         eu_vat_validation_service=_VatValidator(valid=False),
@@ -489,25 +494,25 @@ def test_update_settings_rejects_invalid_vies_result() -> None:
     assert getattr(exc.value, "status_code") == 422
 
 
-def test_update_settings_maps_vies_unavailable_to_503() -> None:
+def test_update_settings_accepts_valid_tax_even_if_vies_unavailable() -> None:
+    """VIES jelenleg nincs bekötve; érvényes HU adószámmal a mentés sikerül."""
     facade = SettingsFacade(
         core_settings_service=_MergingCoreSettingsService(),
         eu_vat_validation_service=_VatValidator(unavailable=True),
     )
 
-    with pytest.raises(Exception) as exc:
-        facade.update_settings(
-            billing_customer_type="company",
-            billing_company_name="Acme Kft.",
-            billing_tax_id="HU12345678",
-            billing_country="HU",
-            billing_postal_code="1111",
-            billing_city="Budapest",
-            billing_address_line="Street 1.",
-        )
+    payload = facade.update_settings(
+        billing_customer_type="company",
+        billing_company_name="Acme Kft.",
+        billing_tax_id=VALID_HU_TAX,
+        billing_country="HU",
+        billing_postal_code="1111",
+        billing_city="Budapest",
+        billing_address_line="Street 1.",
+    )
 
-    assert getattr(exc.value, "status_code") == 503
-
+    assert payload["billing_tax_id"] == VALID_HU_TAX
+    assert payload["billing_customer_type"] == "company"
 
 def test_get_sections_maps_contributor_metadata() -> None:
     facade = SettingsFacade(

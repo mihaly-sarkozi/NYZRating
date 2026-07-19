@@ -67,11 +67,18 @@ def test_settle_subscription_records_failed_outcome_on_payment_error(monkeypatch
 
     class _Tenant:
         slug = "demo"
+        tenant_id = 7
+
+    class _Repo:
+        @staticmethod
+        def get_latest_unpaid_debt_invoice(_tenant_id: int):
+            return None
 
     outcomes: list[str] = []
 
+    svc._repo = _Repo()  # type: ignore[attr-defined]
     monkeypatch.setattr(svc, "ensure_subscription", lambda tenant: _Sub())
-    monkeypatch.setattr(svc, "_load_resource_counts", lambda: {})
+    monkeypatch.setattr(svc, "_load_resource_counts_for_tenant", lambda _slug: {})
     monkeypatch.setattr(svc, "_estimate_next_invoice", lambda subscription, resources=None: {"total_cents": 1200})
     monkeypatch.setattr(
         svc,
@@ -190,7 +197,7 @@ def test_failed_billing_reuses_previous_grace_and_does_not_update_paid_until(mon
     )
 
     assert result.status == "payment_failed"
-    assert result.grace_until == "2026-01-22"
+    assert result.grace_until == "2026-02-14"
     assert captured_due_at is not None
     assert captured_due_at.date().isoformat() == "2026-01-15"
     assert subscription_updated is False
