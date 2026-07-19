@@ -126,6 +126,17 @@ jobs:
       QDRANT_API_KEY: "test-qdrant-key"
       OPENAI_API_KEY: "test-openai-api-key"
       DATABASE_URL: "postgresql+psycopg2://postgres:testpassword@localhost:5432/nyzrating_test"
+      PLATFORM_ADMIN_ALLOWED_IPS: "127.0.0.1/32"
+      INVOICE_ISSUER_NAME: "Test Issuer"
+      INVOICE_ISSUER_TAX_ID: "12345678-1-12"
+      INVOICE_ISSUER_ADDRESS_LINE: "Test utca 1."
+      INVOICE_ISSUER_POSTAL_CODE: "1111"
+      INVOICE_ISSUER_CITY: "Budapest"
+      INVOICE_ISSUER_REGION: "HU-BU"
+      INVOICE_ISSUER_COUNTRY: "HU"
+      INVOICE_ISSUER_PHONE: "+3610000000"
+      INVOICE_ISSUER_WEBSITE: "https://example.test"
+      INVOICE_ISSUER_EMAIL: "billing@example.test"
 
     steps:
       - uses: actions/checkout@v4
