@@ -54,12 +54,6 @@ importers:
       '@playwright/test':
         specifier: ^1.60.0
         version: 1.60.0
-      '@rolldown/binding-linux-arm64-musl':
-        specifier: 1.0.0-beta.41
-        version: 1.0.0-beta.41
-      '@rollup/rollup-linux-arm64-musl':
-        specifier: 4.60.2
-        version: 4.60.2
       '@tailwindcss/postcss':
         specifier: ^4.1.17
         version: 4.1.17
@@ -537,12 +531,6 @@ packages:
     resolution: {integrity: sha512-fyQIhGDhzfc9pK2kH6Pl9c4BDJGfMkPqkyIgYDthyNYoNg3wVhoJMMh19WS4Up/1KMPFVpNsT2q3WmXn2N1m6g==}
     peerDependencies:
       react: ^16.x || ^17.x || ^18.x || ^19.0.0 || ^19.0.0-rc
-
-  '@rolldown/binding-linux-arm64-musl@1.0.0-beta.41':
-    resolution: {integrity: sha512-MioXcCIX/wB1pBnBoJx8q4OGucUAfC1+/X1ilKFsjDK05VwbLZGRgOVD5OJJpUQPK86DhQciNBrfOKDiatxNmg==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    cpu: [arm64]
-    os: [linux]
 
   '@rolldown/pluginutils@1.0.0-beta.43':
     resolution: {integrity: sha512-5Uxg7fQUCmfhax7FJke2+8B6cqgeUJUD9o2uXIKXhD+mG0mL6NObmVoi9wXEU1tY89mZKgAYA6fTbftx3q2ZPQ==}
@@ -2365,8 +2353,6 @@ snapshots:
     dependencies:
       react: 19.2.0
 
-  '@rolldown/binding-linux-arm64-musl@1.0.0-beta.41': {}
-
   '@rolldown/pluginutils@1.0.0-beta.43': {}
 
   '@rollup/rollup-android-arm-eabi@4.60.2':
@@ -2396,7 +2382,8 @@ snapshots:
   '@rollup/rollup-linux-arm64-gnu@4.60.2':
     optional: true
 
-  '@rollup/rollup-linux-arm64-musl@4.60.2': {}
+  '@rollup/rollup-linux-arm64-musl@4.60.2':
+    optional: true
 
   '@rollup/rollup-linux-loong64-gnu@4.60.2':
     optional: true
