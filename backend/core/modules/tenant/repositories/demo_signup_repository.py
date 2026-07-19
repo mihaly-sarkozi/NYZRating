@@ -96,7 +96,7 @@ class DemoSignupRepository:
     ) -> None:
         self.ensure_session_table()
         with self._engine.begin() as conn:
-            conn.execute(
+            result = conn.execute(
                 text(
                     f"""
                     UPDATE {DEMO_SESSION_TABLE}
@@ -123,6 +123,10 @@ class DemoSignupRepository:
                     "subscription_period": subscription_period,
                 },
             )
+            if int(getattr(result, "rowcount", 0) or 0) != 1:
+                raise RuntimeError(
+                    f"Pending verification mentése sikertelen (session_id={session_id})."
+                )
 
     def get_pending_by_verification_token_hash(self, token_hash: str) -> dict[str, Any] | None:
         normalized = (token_hash or "").strip().lower()
@@ -253,10 +257,10 @@ class DemoSignupRepository:
             ).scalar()
         return int(value or 0)
 
-    def has_active_demo_for_email(self, email: str) -> bool:
+    def find_active_demo_tenant_slug_by_email(self, email: str) -> str | None:
         normalized_email = (email or "").strip().lower()
         if not normalized_email:
-            return False
+            return None
         self.ensure_session_table()
         with self._engine.begin() as conn:
             row = conn.execute(
@@ -280,7 +284,10 @@ class DemoSignupRepository:
                 ),
                 {"email": normalized_email},
             ).first()
-        return bool(row)
+        return str(row[0]) if row else None
+
+    def has_active_demo_for_email(self, email: str) -> bool:
+        return self.find_active_demo_tenant_slug_by_email(email) is not None
 
     def cleanup_expired_pending_sessions(self) -> int:
         """Törli a lejárt, még nem megerősített (és nem completed) sessionöket."""

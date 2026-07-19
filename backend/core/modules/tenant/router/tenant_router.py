@@ -194,6 +194,22 @@ def tenant_signup(
         raise HTTPException(status_code=400, detail="A név kötelező.")
     except DemoAlreadyExistsError:
         raise HTTPException(status_code=409, detail=_DEMO_EXISTS_DETAIL)
+    except DemoSignupVerificationExpiredError:
+        raise HTTPException(
+            status_code=410,
+            detail={
+                "reason": "expired",
+                "message": "A megerősítő link lejárt. Indítsd újra a regisztrációt.",
+            },
+        )
+    except DemoSignupVerificationInvalidError:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "reason": "invalid",
+                "message": "Nincs folyamatban lévő megerősítendő regisztráció ehhez az emailhez.",
+            },
+        )
     except DemoEmailBlockedError:
         raise HTTPException(
             status_code=403,

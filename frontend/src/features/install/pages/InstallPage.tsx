@@ -269,7 +269,9 @@ export default function InstallPage() {
               Ezzel az email címmel már hoztál létre telepítést.
             </p>
             <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
-              Oldd meg újra a captchát az űrlapon, majd kattints ide, ha új linket szeretnél.
+              {turnstileRequired && !captchaToken
+                ? "Oldd meg újra a captchát az űrlapon, majd kattints ide, ha új linket szeretnél."
+                : "Kattints ide, ha új megerősítő / elérést szeretnél kapni emailben."}
             </p>
             <p className="text-xs text-[var(--color-muted-foreground)] mb-4">
               A megerősítő / jelszóbeállító linket emailben küldjük.
@@ -286,7 +288,7 @@ export default function InstallPage() {
               <button
                 type="button"
                 onClick={handleResendAccess}
-                disabled={submitting}
+                disabled={submitting || !canSubmit}
                 className="inline-flex items-center justify-center rounded bg-[var(--color-primary)] px-4 py-2 font-medium text-white disabled:opacity-50 order-1 sm:order-2"
               >
                 {submitting ? "Küldés…" : "Új elérést szeretnék"}

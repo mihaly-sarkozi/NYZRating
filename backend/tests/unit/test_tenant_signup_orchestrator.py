@@ -130,3 +130,97 @@ def test_signup_requires_demo_session_id_when_missing(monkeypatch: pytest.Monkey
             resend_existing_access=False,
             demo_session_id=None,
         )
+
+
+def test_signup_pending_email_auto_resends_without_demo_exists(monkeypatch: pytest.MonkeyPatch) -> None:
+    resend_calls: list[dict[str, object]] = []
+
+    class FakeSlugReserver:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    class FakeResendUseCase:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    class FakeNewSignupUseCase:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+        def resend_pending_verification(self, **kwargs):
+            resend_calls.append(kwargs)
+            return DemoSignupResult(
+                slug="acme",
+                host_hint="acme.lvh.me",
+                demo_login_token="",
+                created_new=False,
+                resent_existing=True,
+                awaiting_email_verification=True,
+            )
+
+    class FakeDemoSignupRepository:
+        def is_email_blocked(self, email: str) -> bool:
+            return False
+
+        def find_latest_completed_tenant_slug_by_email(self, email: str):
+            return None
+
+        def find_active_demo_tenant_slug_by_email(self, email: str):
+            return None
+
+        def has_active_demo_for_email(self, email: str) -> bool:
+            return False
+
+        def find_latest_pending_session_by_email(self, email: str):
+            return {
+                "session_id": "sess-1",
+                "email": email,
+                "tenant_slug": "acme",
+                "verification_expires_at": None,
+            }
+
+        def cleanup_expired_pending_sessions(self) -> int:
+            return 0
+
+        def cleanup_expired_demo_tenants(self) -> int:
+            return 0
+
+    class FakeTenantRepository:
+        def get_by_slug(self, slug: str):
+            return None
+
+    monkeypatch.setattr(orchestrator_module, "DemoSlugReserver", FakeSlugReserver)
+    monkeypatch.setattr(orchestrator_module, "DemoSignupResendUseCase", FakeResendUseCase)
+    monkeypatch.setattr(orchestrator_module, "DemoNewSignupUseCase", FakeNewSignupUseCase)
+    monkeypatch.setattr(orchestrator_module, "is_test_env", lambda _env: False)
+    monkeypatch.setattr(orchestrator_module, "get_app_env", lambda: "production")
+    monkeypatch.setattr(
+        orchestrator_module,
+        "normalize_demo_locale",
+        lambda locale: (locale or "hu").strip().lower()[:2] or "hu",
+    )
+
+    orchestrator = orchestrator_module.TenantSignupOrchestrator(
+        tenant_repository=FakeTenantRepository(),
+        user_service=object(),
+        provisioning_service=object(),
+        demo_signup_repository=FakeDemoSignupRepository(),
+        demo_login_token_service=object(),
+        tenant_base_domain="lvh.me",
+        clock=object(),
+    )
+
+    result = orchestrator.signup(
+        email="owner@example.com",
+        kb_name="Acme",
+        name="Owner",
+        locale="hu",
+        resend_existing_access=False,
+        company_name="Acme",
+        demo_session_id="sess-new",
+    )
+
+    assert result.resent_existing is True
+    assert result.awaiting_email_verification is True
+    assert len(resend_calls) == 1
+    assert resend_calls[0]["email"] == "owner@example.com"

@@ -111,7 +111,10 @@ class DemoNewSignupUseCase:
             lang=preferred_locale,
         )
         if ok is False:
-            raise RuntimeError("A megerősítő email küldése sikertelen.")
+            raise RuntimeError(
+                "A megerősítő email küldése sikertelen. Ellenőrizd az SMTP beállításokat, "
+                "vagy nézd meg a spam mappát / SMTP logot."
+            )
 
     def _send_demo_set_password_email(
         self,

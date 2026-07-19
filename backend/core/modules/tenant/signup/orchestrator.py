@@ -34,7 +34,6 @@ from core.modules.tenant.slug.reservation import DemoSlugReserver
 from core.modules.tenant.tokens.demo_jwt import DemoLoginTokenService
 from core.modules.tenant.signup.unsubscribe import DemoUnsubscribeUseCase
 from core.modules.tenant.signup.errors import (
-    DemoAlreadyExistsError,
     DemoSignupCapacityReachedError,
     DemoSignupDisabledError,
     DemoSignupDisposableEmailError,
@@ -166,6 +165,14 @@ class TenantSignupOrchestrator:
         return self._new_signup_use_case.confirm_and_provision(token=token)
 
     def _find_demo_tenant_by_email(self, email: str):
+        # Először aktív demo (ne lejárt/inactive completed session).
+        find_active = getattr(self._demo_signup_repo, "find_active_demo_tenant_slug_by_email", None)
+        if callable(find_active):
+            active_slug = find_active(email)
+            if active_slug:
+                tenant = self._tenant_repo.get_by_slug(active_slug)
+                if tenant is not None:
+                    return tenant
         slug = self._demo_signup_repo.find_latest_completed_tenant_slug_by_email(email)
         if not slug:
             return None
@@ -256,6 +263,7 @@ class TenantSignupOrchestrator:
         remote_ip: str | None = None,
     ) -> DemoSignupResult:
         del address, phone  # reserved for future use
+        _ = resend_existing_access  # API compat; ismételt emailnél mindig auto-resend
         counters_counted = False
 
         normalized_email = (email or "").strip().lower()
@@ -273,12 +281,8 @@ class TenantSignupOrchestrator:
 
         preferred_locale = normalize_demo_locale(locale)
         existing_tenant = self._find_demo_tenant_by_email(normalized_email)
-        if existing_tenant is None and self._demo_signup_repo.has_active_demo_for_email(normalized_email):
-            raise DemoAlreadyExistsError()
-
         if existing_tenant is not None:
-            if not resend_existing_access:
-                raise DemoAlreadyExistsError()
+            # Ugyanarra az emailre ismételt signup = set-password / access újraküldés (ne 409).
             return self._resend_use_case.execute(
                 existing_tenant=existing_tenant,
                 email=normalized_email,
@@ -296,8 +300,7 @@ class TenantSignupOrchestrator:
         if require_verify and hasattr(self._demo_signup_repo, "find_latest_pending_session_by_email"):
             pending = self._demo_signup_repo.find_latest_pending_session_by_email(normalized_email)
         if pending is not None:
-            if not resend_existing_access:
-                raise DemoAlreadyExistsError()
+            # Pending megerősítés: ismételt signup = confirm email újraküldés (ne 409).
             return self._new_signup_use_case.resend_pending_verification(
                 email=normalized_email,
                 preferred_locale=preferred_locale,
