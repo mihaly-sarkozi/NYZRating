@@ -60,40 +60,56 @@ export default function TurnstileWidget({ onTokenChange, className }: TurnstileW
 
   useEffect(() => {
     if (!siteKey || !containerRef.current) return;
+
     let cancelled = false;
 
     loadTurnstileScript()
       .then(() => {
-        if (cancelled || !containerRef.current || !window.turnstile) return;
+        if (cancelled || !containerRef.current || !window.turnstile) {
+          return;
+        }
+
         if (widgetIdRef.current) {
           try {
             window.turnstile.remove(widgetIdRef.current);
           } catch {
-            /* ignore */
+            // ignore
           }
+
           widgetIdRef.current = null;
         }
+
         containerRef.current.innerHTML = "";
+
         widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
           callback: (token) => onTokenChange(token),
           "expired-callback": () => onTokenChange(null),
-          "error-callback": () => onTokenChange(null),
+          "error-callback": () => {
+            console.error("Cloudflare Turnstile widget error");
+            onTokenChange(null);
+          },
           theme: "auto",
         });
       })
-      .catch(() => {
-        if (!cancelled) onTokenChange(null);
+      .catch((error) => {
+        console.error("Turnstile initialization failed:", error);
+
+        if (!cancelled) {
+          onTokenChange(null);
+        }
       });
 
     return () => {
       cancelled = true;
+
       if (widgetIdRef.current && window.turnstile) {
         try {
           window.turnstile.remove(widgetIdRef.current);
         } catch {
-          /* ignore */
+          // ignore
         }
+
         widgetIdRef.current = null;
       }
     };
