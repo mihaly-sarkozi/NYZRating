@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { confirmInstallSignup } from "../api/installApi";
+import { confirmInstallSignup, type ConfirmSignupResponse } from "../api/installApi";
 
 type Status = "loading" | "ok" | "invalid" | "expired" | "error";
 
-/** Strict Mode / gyors újramount ellen: ugyanaz a token csak egyszer induljon el. */
-const confirmInFlightTokens = new Set<string>();
+/**
+ * Strict Mode kétszer mountolja az effectet: az első cleanup cancelled=true,
+ * a második pedig ne indítson új requestet, de várja meg ugyanazt a promise-t.
+ */
+const confirmPromises = new Map<string, Promise<ConfirmSignupResponse>>();
+
+function confirmOnce(token: string): Promise<ConfirmSignupResponse> {
+  const existing = confirmPromises.get(token);
+  if (existing) return existing;
+  const promise = confirmInstallSignup(token).catch((err) => {
+    confirmPromises.delete(token);
+    throw err;
+  });
+  confirmPromises.set(token, promise);
+  return promise;
+}
 
 export default function ConfirmSignupPage() {
   const [searchParams] = useSearchParams();
@@ -19,11 +33,9 @@ export default function ConfirmSignupPage() {
       setMessage("Hiányzó vagy érvénytelen megerősítő link.");
       return;
     }
-    if (confirmInFlightTokens.has(token)) return;
-    confirmInFlightTokens.add(token);
 
     let cancelled = false;
-    confirmInstallSignup(token)
+    confirmOnce(token)
       .then((res) => {
         if (cancelled) return;
         const url = (res.set_password_url || "").trim();
@@ -36,7 +48,6 @@ export default function ConfirmSignupPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        confirmInFlightTokens.delete(token);
         const ax = err as { response?: { status?: number; data?: { detail?: unknown } } };
         const detail = ax.response?.data?.detail;
         const msg =
