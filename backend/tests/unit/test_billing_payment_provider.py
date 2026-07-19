@@ -103,6 +103,58 @@ def test_settle_subscription_records_failed_outcome_on_payment_error(monkeypatch
     assert result.status == "payment_failed"
 
 
+def test_settle_subscription_accepts_manual_required_as_paid(monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = BillingService.__new__(BillingService)
+
+    class _Sub:
+        plan_code = "starter"
+        billing_period = "monthly"
+
+    class _Tenant:
+        slug = "demo"
+        tenant_id = 7
+
+    class _Debt:
+        id = 99
+        total_cents = 1500
+        period_key = "2026-07"
+
+    settled: list[object] = []
+
+    class _Repo:
+        @staticmethod
+        def get_latest_unpaid_debt_invoice(_tenant_id: int):
+            return _Debt()
+
+    svc._repo = _Repo()  # type: ignore[attr-defined]
+    monkeypatch.setattr(svc, "ensure_subscription", lambda tenant: _Sub())
+    monkeypatch.setattr(
+        svc,
+        "_execute_payment",
+        lambda **kwargs: PaymentExecutionResult(
+            success=False,
+            status="manual_required",
+            payment_method="manual",
+            message="manual",
+        ),
+    )
+    monkeypatch.setattr(svc, "_current_period", lambda: ("2026-07", None, datetime(2026, 7, 31, tzinfo=UTC), None))
+    monkeypatch.setattr(svc, "_billing_due_date", lambda _sub, _fallback: date(2026, 7, 31))
+    monkeypatch.setattr(svc, "_next_billing_date_after", lambda billing_date, _period: date(2026, 8, 31))
+    monkeypatch.setattr(
+        svc,
+        "_settle_debt_invoice_as_paid",
+        lambda tenant, subscription, invoice: settled.append(invoice),
+    )
+
+    result = BillingService.settle_subscription(svc, _Tenant())  # type: ignore[misc]
+
+    assert result.status == "paid"
+    assert "manuális" in result.message.lower()
+    assert len(settled) == 1
+    assert getattr(settled[0], "id", None) == 99
+
+
 def test_failed_billing_reuses_previous_grace_and_does_not_update_paid_until(monkeypatch: pytest.MonkeyPatch) -> None:
     svc = BillingService.__new__(BillingService)
     svc.default_currency = "HUF"

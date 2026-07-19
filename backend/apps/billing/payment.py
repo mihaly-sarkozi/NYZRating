@@ -183,11 +183,13 @@ class BillingPaymentGateway:
                 metadata=metadata,
             )
         if provider == "manual":
+            # Nincs valós kártyás charge. A tulajdonos checkout/settle a service rétegben
+            # ``manual_paid``-ként rögzíti; az automatikus retry ezt nem fogadja el.
             return PaymentExecutionResult(
                 success=False,
                 status="manual_required",
                 payment_method="manual",
-                message="Manual billing mode: fizetés admin jóváhagyással történik.",
+                message="Manuális számlázási mód: a fizetést a rendszer manuálisan rögzíti.",
             )
         return PaymentExecutionResult(
             success=False,

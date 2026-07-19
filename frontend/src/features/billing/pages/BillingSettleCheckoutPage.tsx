@@ -87,6 +87,7 @@ export default function BillingSettleCheckoutPage() {
         setError(res.data?.message || t("common.errorGeneric"));
         return;
       }
+      // paid / simulated_paid / manual_paid / success — navigate away
       await queryClient.invalidateQueries({ queryKey: queryKeys.billingOverview });
       await queryClient.invalidateQueries({ queryKey: queryKeys.billingAccessStatus });
       await queryClient.refetchQueries({ queryKey: queryKeys.billingOverview });

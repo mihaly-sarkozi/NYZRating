@@ -165,6 +165,18 @@ class BillingService:
             metadata=metadata,
         )
 
+    @staticmethod
+    def _owner_checkout_payment_accepted(payment: PaymentExecutionResult) -> bool:
+        """Tulajdonos által indított fizetés: simulated/stripe siker, vagy manual_required.
+
+        Manual providerben nincs valós kártyás charge; a checkout/settle a
+        ``manual_paid`` rögzítést jelenti (ugyanúgy, mint az első csomagváltás).
+        Automatikus retry ezt NEM használja — ott a manual_required továbbra is skip.
+        """
+        if payment.success:
+            return True
+        return str(payment.status or "").strip().lower() == "manual_required"
+
     def verify_payment_webhook_signature(self, *, payload: bytes, signature: str | None, secret: str | None) -> bool:
         return self._get_payment_gateway().verify_webhook_signature(
             payload=payload,
@@ -2067,12 +2079,15 @@ class BillingService:
             )
             _, _, period_end_dt, _ = self._current_period()
             billing_date = self._billing_due_date(subscription, period_end_dt.date())
-            if payment.success:
+            if self._owner_checkout_payment_accepted(payment):
                 self._settle_debt_invoice_as_paid(tenant, subscription, debt)
                 next_billing_date = self._next_billing_date_after(billing_date, subscription.billing_period)
-                message = "Sikeres tartozás-rendezés."
-                if payment.external_id:
-                    message = f"{message} Tranzakció: {payment.external_id}"
+                if payment.success:
+                    message = "Sikeres tartozás-rendezés."
+                    if payment.external_id:
+                        message = f"{message} Tranzakció: {payment.external_id}"
+                else:
+                    message = "A tartozást manuális számlázási módban fizetettként rögzítettük."
                 return BillingDebugBillingRunResponse(
                     status="paid",
                     message=message,
@@ -2116,10 +2131,12 @@ class BillingService:
                 "billing_period": str(subscription.billing_period),
             },
         )
-        if payment.success:
+        if self._owner_checkout_payment_accepted(payment):
             settled = self.complete_subscription_billing(tenant, subscription=subscription, outcome="success", force=True)
             if payment.external_id:
                 settled.message = f"{settled.message} Tranzakció: {payment.external_id}"
+            elif not payment.success:
+                settled.message = "A számlát manuális számlázási módban fizetettként rögzítettük."
             return settled
         return self.complete_subscription_billing(tenant, subscription=subscription, outcome="failed", force=True)
 
@@ -2141,7 +2158,7 @@ class BillingService:
                 "quantity": str(qty),
             },
         )
-        if not payment.success:
+        if not self._owner_checkout_payment_accepted(payment):
             raise ValueError(payment.message or "A fizetés nem sikerült.")
         subscription = self.ensure_subscription(tenant)
         extra_kb_count = int(subscription.extra_kb_count or 0)
