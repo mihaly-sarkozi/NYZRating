@@ -46,7 +46,7 @@ services:
       - .env
     environment:
       APP_ENV: ${APP_ENV}
-      INSTANCE_ROLE: web
+      INSTANCE_ROLE: combined
       DATABASE_URL: postgresql+psycopg2://nyzrating:${POSTGRES_PASSWORD}@postgres:5432/nyzrating
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       redis_url: redis://:${REDIS_PASSWORD}@redis:6379/0

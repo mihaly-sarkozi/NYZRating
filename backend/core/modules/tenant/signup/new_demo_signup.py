@@ -37,11 +37,14 @@ def _install_frontend_base_url() -> str:
     configured = str(getattr(settings, "frontend_base_url", "") or "").strip().rstrip("/")
     if configured:
         return configured
-    install_host = str(getattr(settings, "install_host", "") or "").strip().lower()
-    if not install_host:
-        return ""
     scheme = "https" if getattr(settings, "cookie_secure", False) else "http"
-    return f"{scheme}://{install_host}"
+    install_host = str(getattr(settings, "install_host", "") or "").strip().lower()
+    if install_host:
+        return f"{scheme}://{install_host}"
+    base_domain = str(getattr(settings, "tenant_base_domain", "") or "").strip().lower()
+    if base_domain:
+        return f"{scheme}://www.{base_domain}"
+    return ""
 
 
 def build_confirm_signup_link(raw_token: str) -> str:
@@ -91,14 +94,24 @@ class DemoNewSignupUseCase:
         raw_token: str,
     ) -> None:
         link = build_confirm_signup_link(raw_token)
-        email_service = getattr(self._user_service, "email_service", None)
-        if email_service and link and hasattr(email_service, "send_demo_confirm_signup"):
-            email_service.send_demo_confirm_signup(
-                email,
-                link,
-                tenant_slug=tenant_slug,
-                lang=preferred_locale,
+        if not link:
+            raise RuntimeError(
+                "Confirm-signup link nem generálható: állítsd be a FRONTEND_BASE_URL vagy INSTALL_HOST értéket."
             )
+        email_service = getattr(self._user_service, "email_service", None)
+        if email_service is None:
+            raise RuntimeError("Email service nincs konfigurálva a demo signup megerősítő levélhez.")
+        send = getattr(email_service, "send_demo_confirm_signup", None)
+        if not callable(send):
+            raise RuntimeError("send_demo_confirm_signup nem elérhető az email service-en.")
+        ok = send(
+            email,
+            link,
+            tenant_slug=tenant_slug,
+            lang=preferred_locale,
+        )
+        if ok is False:
+            raise RuntimeError("A megerősítő email küldése sikertelen.")
 
     def _send_demo_set_password_email(
         self,

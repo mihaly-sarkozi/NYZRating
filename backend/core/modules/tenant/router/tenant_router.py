@@ -203,6 +203,8 @@ def tenant_signup(
         )
     except DemoSignupRateLimitedError:
         raise HTTPException(status_code=429, detail="Túl sok demo regisztrációs próbálkozás erről a forrásról.")
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc) or "A regisztráció ideiglenesen nem elérhető.")
 
     return {
         "slug": result.slug,

@@ -46,6 +46,8 @@ from core.modules.tenant.signup.errors import (
     NameRequiredError,
 )
 from core.kernel.config.config_loader import settings
+from core.kernel.config.config_loader import get_app_env
+from core.kernel.config.environment import is_deployed_env
 from core.kernel.logging.observability import increment_metric
 from core.modules.tenant.extensions.tenant_hooks import get_tenant_signup_hooks
 from shared.utils.slug import slug_is_valid
@@ -286,6 +288,11 @@ class TenantSignupOrchestrator:
             )
 
         require_verify = bool(getattr(settings, "demo_signup_require_email_verification", True))
+        try:
+            if is_deployed_env(get_app_env()):
+                require_verify = True
+        except Exception:
+            require_verify = True
         pending = None
         if require_verify and hasattr(self._demo_signup_repo, "find_latest_pending_session_by_email"):
             pending = self._demo_signup_repo.find_latest_pending_session_by_email(normalized_email)

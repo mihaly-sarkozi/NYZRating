@@ -121,16 +121,15 @@ class EmailServiceProxy:
         tenant_slug: str,
         lang: str | None = None,
     ) -> bool:
-        self._publisher.publish(
-            "email_demo_confirm_signup",
-            {
-                "to_email": to_email,
-                "confirm_signup_link": confirm_signup_link,
-                "tenant_slug": tenant_slug,
-                "lang": lang,
-            },
+        # VPS web-only (nincs worker): sync SMTP, ne outbox.
+        return bool(
+            self._email_service.send_demo_confirm_signup(
+                to_email,
+                confirm_signup_link,
+                tenant_slug=tenant_slug,
+                lang=lang,
+            )
         )
-        return True
 
     def send_demo_set_password_invite(
         self,
@@ -140,19 +139,15 @@ class EmailServiceProxy:
         demo_expires_at,
         lang: str | None = None,
     ) -> bool:
-        expires = demo_expires_at
-        if hasattr(expires, "isoformat"):
-            expires = expires.isoformat()
-        self._publisher.publish(
-            "email_demo_set_password",
-            {
-                "to_email": to_email,
-                "set_password_link": set_password_link,
-                "demo_expires_at": expires,
-                "lang": lang,
-            },
+        # Sync: demo invite eddig is __getattr__-on át ment azonnal.
+        return bool(
+            self._email_service.send_demo_set_password_invite(
+                to_email,
+                set_password_link,
+                demo_expires_at=demo_expires_at,
+                lang=lang,
+            )
         )
-        return True
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._email_service, name)
