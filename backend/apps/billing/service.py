@@ -71,6 +71,7 @@ from apps.billing.workflows import (
 )
 from apps.billing.schemas import (
     BillingAccessStatusResponse,
+    BillingAddonPurchaseRequest,
     BillingCatalogEntryResponse,
     BillingCancellationResponse,
     BillingDebugBillingRunResponse,
