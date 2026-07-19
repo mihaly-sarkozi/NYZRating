@@ -579,6 +579,17 @@ class PlatformAdminService:
             raise ValueError("tenant_not_found")
         return activated
 
+    def deactivate_active_tenant(self, tenant_id: int, *, confirm_name: str, admin_user_id: int | None) -> dict:
+        statistics = self.repository.platform_tenant_statistics_detail(int(tenant_id))
+        if statistics is None:
+            raise ValueError("tenant_not_found")
+        tenant = dict(statistics.get("tenant") or {})
+        self._ensure_ai_page_name_confirmation(tenant, confirm_name)
+        deactivated = self.repository.deactivate_active_tenant(int(tenant_id), updated_by=admin_user_id)
+        if deactivated is None:
+            raise ValueError("tenant_not_found")
+        return deactivated
+
     def permanently_delete_cancelled_tenant(self, tenant_id: int, *, confirm_name: str, admin_user_id: int | None) -> dict:
         statistics = self.repository.platform_tenant_statistics_detail(int(tenant_id))
         if statistics is None:

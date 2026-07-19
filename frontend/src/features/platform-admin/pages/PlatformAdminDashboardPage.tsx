@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getApiErrorMessage } from "../../../utils/getApiErrorMessage";
 import {
   activatePlatformAdminTenant,
+  deactivatePlatformAdminTenant,
   fetchPlatformAdminStatistics,
   permanentlyDeletePlatformAdminTenant,
   restorePlatformAdminTenant,
@@ -38,7 +39,7 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint?:
   );
 }
 
-type AiPageAction = "restore" | "activate" | "permanent-delete";
+type AiPageAction = "restore" | "activate" | "deactivate" | "permanent-delete";
 
 type AiPageActionConfirmState = {
   action: AiPageAction;
@@ -59,6 +60,7 @@ function tenantStatusBadge(tenant: PlatformAdminStatisticsTenant) {
 function actionTitle(action: AiPageAction): string {
   if (action === "restore") return "NYZ Rating oldal visszaállítása";
   if (action === "activate") return "NYZ Rating oldal aktiválása";
+  if (action === "deactivate") return "NYZ Rating oldal inaktiválása";
   return "NYZ Rating oldal végleges törlése";
 }
 
@@ -67,7 +69,17 @@ function actionDescription(action: AiPageAction): string {
   if (action === "activate") {
     return "Az aktiválás után a tulajdonos újra be tud lépni. Ha van tartozás, csak a számlázás érhető el, amíg kiegyenlítik.";
   }
+  if (action === "deactivate") {
+    return "Az inaktiválás után a tulajdonos nem tud belépni, amíg újra nem aktiválod. A végleges törléshez előbb inaktiváld az oldalt.";
+  }
   return "A végleges törlés eltávolítja a NYZ Rating oldal adatbázisát és nem vonható vissza.";
+}
+
+function actionErrorFallback(action: AiPageAction): string {
+  if (action === "restore") return "Nem sikerült visszaállítani a NYZ Rating oldalt.";
+  if (action === "activate") return "Nem sikerült aktiválni a NYZ Rating oldalt.";
+  if (action === "deactivate") return "Nem sikerült inaktiválni a NYZ Rating oldalt.";
+  return "Nem sikerült végleg törölni a NYZ Rating oldalt.";
 }
 
 export default function PlatformAdminDashboardPage() {
@@ -139,6 +151,8 @@ export default function PlatformAdminDashboardPage() {
         await restorePlatformAdminTenant(aiPage.id, actionConfirmName.trim());
       } else if (action === "activate") {
         await activatePlatformAdminTenant(aiPage.id, actionConfirmName.trim());
+      } else if (action === "deactivate") {
+        await deactivatePlatformAdminTenant(aiPage.id, actionConfirmName.trim());
       } else {
         await permanentlyDeletePlatformAdminTenant(aiPage.id, actionConfirmName.trim());
       }
@@ -146,13 +160,7 @@ export default function PlatformAdminDashboardPage() {
       setActionConfirmName("");
       await loadStatistics();
     } catch (err) {
-      const fallback =
-        action === "restore"
-          ? "Nem sikerült visszaállítani a NYZ Rating oldalt."
-          : action === "activate"
-            ? "Nem sikerült aktiválni a NYZ Rating oldalt."
-            : "Nem sikerült végleg törölni a NYZ Rating oldalt.";
-      setTenantError(getApiErrorMessage(err) ?? fallback);
+      setTenantError(getApiErrorMessage(err) ?? actionErrorFallback(action));
     } finally {
       setTenantActionPending(null);
     }
@@ -219,6 +227,7 @@ export default function PlatformAdminDashboardPage() {
                 {tenants.map((tenant) => {
                   const temporaryDeleted = (tenant.lifecycle_status ?? "") === "temporary_deleted";
                   const inactive = !tenant.is_active && !temporaryDeleted;
+                  const active = Boolean(tenant.is_active) && !temporaryDeleted;
                   const actionDisabled = tenantActionPending === tenant.id || tenantActionPending != null;
                   return (
                   <tr key={tenant.id} className="border-b border-[var(--color-border)]/60">
@@ -269,7 +278,7 @@ export default function PlatformAdminDashboardPage() {
                           </button>
                         </div>
                       ) : inactive ? (
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
                           <button
                             type="button"
                             disabled={actionDisabled}
@@ -277,6 +286,25 @@ export default function PlatformAdminDashboardPage() {
                             className="rounded-lg border border-green-500 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-50"
                           >
                             Aktiválás
+                          </button>
+                          <button
+                            type="button"
+                            disabled={actionDisabled}
+                            onClick={() => openActionConfirm(tenant, "permanent-delete")}
+                            className="rounded-lg border border-red-500 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Törlés
+                          </button>
+                        </div>
+                      ) : active ? (
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            disabled={actionDisabled}
+                            onClick={() => openActionConfirm(tenant, "deactivate")}
+                            className="rounded-lg border border-amber-500 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+                          >
+                            Inaktiválás
                           </button>
                         </div>
                       ) : (
@@ -330,7 +358,11 @@ export default function PlatformAdminDashboardPage() {
                 disabled={!actionConfirmMatches || tenantActionPending != null}
                 onClick={() => void handleConfirmAiPageAction()}
                 className={`rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
-                  actionConfirm.action === "permanent-delete" ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+                  actionConfirm.action === "permanent-delete"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : actionConfirm.action === "deactivate"
+                      ? "bg-amber-600 hover:bg-amber-700"
+                      : "bg-green-600 hover:bg-green-700"
                 }`}
               >
                 {tenantActionPending != null ? "Folyamatban..." : "OK"}
@@ -343,4 +375,3 @@ export default function PlatformAdminDashboardPage() {
     </PlatformAdminLayout>
   );
 }
-

@@ -154,6 +154,13 @@ export async function activatePlatformAdminTenant(tenantId: number, confirmName:
   });
 }
 
+export async function deactivatePlatformAdminTenant(tenantId: number, confirmName: string): Promise<void> {
+  await fetchPlatformAdminCsrfToken();
+  await withPlatformAdminRefresh(async () => {
+    await api.post(`/platform-admin/tenants/${tenantId}/deactivate`, { confirm_name: confirmName }, { headers: authHeaders() });
+  });
+}
+
 export async function permanentlyDeletePlatformAdminTenant(tenantId: number, confirmName: string): Promise<void> {
   await fetchPlatformAdminCsrfToken();
   await withPlatformAdminRefresh(async () => {

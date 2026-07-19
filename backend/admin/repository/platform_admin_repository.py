@@ -629,6 +629,23 @@ class PlatformAdminRepository:
             invalidate_tenant_cache(tenant.slug)
             return {"id": int(tenant.id), "slug": tenant.slug, "name": tenant.name, "is_active": True}
 
+    def deactivate_active_tenant(self, tenant_id: int, *, updated_by: int | None = None) -> dict | None:
+        """Aktív tenant platform admin általi inaktiválása."""
+        with self._sf() as db:
+            tenant = db.query(TenantORM).filter(TenantORM.id == int(tenant_id)).first()
+            if tenant is None:
+                return None
+            if not bool(tenant.is_active):
+                raise ValueError("tenant_already_inactive")
+            latest = self._latest_cancellation_by_tenant(db).get(int(tenant_id))
+            if latest is not None and str(latest.get("status") or "").lower() == "deactivation_requested":
+                raise ValueError("tenant_is_temporary_deleted")
+            tenant.is_active = False
+            tenant.updated_by = updated_by
+            db.commit()
+            invalidate_tenant_cache(tenant.slug)
+            return {"id": int(tenant.id), "slug": tenant.slug, "name": tenant.name, "is_active": False}
+
     def permanently_delete_cancelled_tenant(self, tenant_id: int, *, deleted_by: int | None = None) -> dict | None:
         engine = getattr(self._sf, "engine", None)
         if engine is None:
@@ -640,9 +657,6 @@ class PlatformAdminRepository:
             result = {"id": int(tenant.id), "slug": tenant.slug, "name": tenant.name, "is_active": bool(tenant.is_active)}
             if bool(tenant.is_active):
                 raise ValueError("tenant_must_be_inactive")
-            latest = self._latest_cancellation_by_tenant(db).get(int(tenant_id))
-            if latest is None or str(latest.get("status") or "").lower() != "deactivation_requested":
-                raise ValueError("tenant_not_cancelled")
         drop_tenant_schema(engine, result["slug"])
         with self._sf() as db:
             tenant = db.query(TenantORM).filter(TenantORM.id == int(tenant_id)).first()

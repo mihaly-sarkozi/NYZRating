@@ -783,6 +783,44 @@ def activate_platform_tenant(
     return OperationStatusResponse(message="Tenant activated")
 
 
+@router.post("/tenants/{tenant_id}/deactivate", response_model=OperationStatusResponse)
+@limiter.limit("10/minute")
+def deactivate_platform_tenant(
+    request: Request,
+    tenant_id: int,
+    body: PlatformAdminTenantActionRequest = Body(...),
+    service: PlatformAdminService = Depends(get_platform_admin_service),
+    user: PlatformAdminUserORM = Depends(current_platform_admin),
+    audit: AuditService = Depends(get_audit_service),
+):
+    try:
+        tenant = service.deactivate_active_tenant(tenant_id, confirm_name=body.confirm_name, admin_user_id=user.id)
+    except ValueError as exc:
+        code = str(exc)
+        if code == "tenant_not_found":
+            raise HTTPException(status_code=404, detail="Tenant not found") from exc
+        if code == "tenant_confirmation_mismatch":
+            raise HTTPException(status_code=400, detail="AI oldal név megerősítés nem egyezik") from exc
+        if code == "tenant_already_inactive":
+            raise HTTPException(status_code=409, detail="Az oldal már inaktív.") from exc
+        if code == "tenant_is_temporary_deleted":
+            raise HTTPException(
+                status_code=409,
+                detail="Ideiglenesen törölt oldalhoz használd a Végleges törlés vagy Visszaállítás műveletet.",
+            ) from exc
+        raise HTTPException(status_code=409, detail=code) from exc
+    _audit_log(
+        audit,
+        AuditLogAction.PLATFORM_ADMIN_STATS_VIEWED,
+        user_id=user.id,
+        actor_type="platform_admin",
+        target_type="tenant",
+        target_id=str(tenant_id),
+        details={"action": "tenant_deactivate", "tenant_slug": tenant.get("slug")},
+    )
+    return OperationStatusResponse(message="Tenant deactivated")
+
+
 @router.post("/tenants/{tenant_id}/permanent-delete", response_model=OperationStatusResponse)
 @limiter.limit("5/minute")
 def permanently_delete_platform_tenant(
@@ -801,6 +839,11 @@ def permanently_delete_platform_tenant(
             raise HTTPException(status_code=404, detail="Tenant not found") from exc
         if code == "tenant_confirmation_mismatch":
             raise HTTPException(status_code=400, detail="AI oldal név megerősítés nem egyezik") from exc
+        if code == "tenant_must_be_inactive":
+            raise HTTPException(
+                status_code=409,
+                detail="Csak inaktív vagy ideiglenesen törölt oldalt lehet végleg törölni.",
+            ) from exc
         raise HTTPException(status_code=409, detail=code) from exc
     _audit_log(
         audit,
