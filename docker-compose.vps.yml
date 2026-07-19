@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: nyzrating
       POSTGRES_USER: nyzrating
-      POSTGRES_PASSWORD: TestDbPassword2026
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
