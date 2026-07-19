@@ -54,7 +54,11 @@ function normalizeCountryCode(value: string | null | undefined): string {
 }
 
 export function isEuropeanBillingCountry(countryCode: string | null | undefined): boolean {
-  return EUROPEAN_COUNTRY_CODES.includes(normalizeCountryCode(countryCode));
+const normalizedCountryCode = normalizeCountryCode(countryCode);
+
+return (EUROPEAN_COUNTRY_CODES as readonly string[]).includes(
+  normalizedCountryCode,
+);
 }
 
 export function isEuBillingCountry(countryCode: string | null | undefined): boolean {

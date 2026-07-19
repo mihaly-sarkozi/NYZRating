@@ -8,7 +8,6 @@ import type {
   PlatformAdminAuditTrailResponse,
   PlatformAdminUser,
   PlatformAdminDebugDateResponse,
-  PlatformAdminBillingPaymentSimulationResponse,
   PlatformAdminMfaStatusResponse,
   PlatformAdminMfaSetupResponse,
   PlatformAdminMfaConfirmResponse,

@@ -5,7 +5,7 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-from sqlalchemy import create_engine, event as sa_event
+from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -28,17 +28,6 @@ class _SessionFactory:
 
             TenantORM.__table__.create(self._engine, checkfirst=True)
         install_engine_instrumentation(self._engine)
-        if self._engine.dialect.name != "sqlite":
-            @sa_event.listens_for(self._engine, "reset")
-            def _reset_search_path(dbapi_conn, connection_record, reset_state):
-                """Pool-ba visszaadáskor reseteli a search_path-ot (defense-in-depth)."""
-                if hasattr(dbapi_conn, "cursor"):
-                    try:
-                        cur = dbapi_conn.cursor()
-                        cur.execute("RESET search_path")
-                        cur.close()
-                    except Exception:
-                        pass
         self._inner = sessionmaker(bind=self._engine, expire_on_commit=False, autoflush=False)
 
     # Ez a metódus a Python-specifikus speciális működést valósítja meg.

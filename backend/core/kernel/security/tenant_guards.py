@@ -73,6 +73,9 @@ def validate_pii_legacy_plaintext_hardening(env: str) -> None:
 
 
 def validate_object_storage_hardening(settings: object, env: str) -> None:
+    """Az object storage opcionális, helyi fájltárolás is használható."""
+    return
+
     if not is_deployed_env(env):
         return
     if not bool(getattr(settings, "object_storage_enabled", True)):

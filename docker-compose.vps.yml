@@ -1,0 +1,82 @@
+name: nyzrating-vps
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nyzrating-postgres
+    environment:
+      POSTGRES_DB: nyzrating
+      POSTGRES_USER: nyzrating
+      POSTGRES_PASSWORD: TestDbPassword2026
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -H 'Host: www.nyzrating.com' http://127.0.0.1:8001/api/health/ready >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: nyzrating-redis
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.prod.Dockerfile
+    container_name: nyzrating-backend
+    env_file:
+      - .env
+    environment:
+      APP_ENV: ${APP_ENV}
+      INSTANCE_ROLE: web
+      DATABASE_URL: postgresql+psycopg2://nyzrating:${POSTGRES_PASSWORD}@postgres:5432/nyzrating
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      redis_url: redis://:${REDIS_PASSWORD}@redis:6379/0
+      OBJECT_STORAGE_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -H 'Host: www.nyzrating.com' http://127.0.0.1:8001/api/health/ready >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.prod.Dockerfile
+    container_name: nyzrating-frontend
+    ports:
+      - "127.0.0.1:4173:4173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -46,7 +46,7 @@ def ensure_database_exists(url: str) -> None:
         return
     # Csatlakozás a postgres alapértelmezett DB-hez
     parsed = parsed.set(database="postgres")
-    server_url = str(parsed)
+    server_url = parsed.render_as_string(hide_password=False)
     engine = create_engine(server_url, future=True, isolation_level="AUTOCOMMIT")
     with engine.connect() as conn:
         r = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": db_name})

@@ -21,7 +21,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY backend/pyproject.toml ./pyproject.toml
 COPY backend/apps ./apps
-COPY backend/config ./config
+COPY backend/admin ./admin
+COPY backend/scripts ./scripts
 COPY backend/core ./core
 COPY backend/infra ./infra
 COPY backend/lang ./lang

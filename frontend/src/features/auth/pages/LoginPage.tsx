@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "../../../i18n";
 import { useAuthStore } from "../state/authStore";
 import { getSafeLoginRedirect } from "../../../utils/loginRedirect";

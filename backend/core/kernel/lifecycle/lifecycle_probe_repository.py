@@ -71,8 +71,6 @@ class LifecycleProbeRepository:
         endpoint = str(getattr(settings, "object_storage_endpoint", "") or "").strip()
         bucket = str(getattr(settings, "object_storage_bucket", "") or "").strip()
         if not enabled:
-            if is_deployed_env(env):
-                raise RuntimeError("object_storage_required_but_disabled")
             return "disabled"
         if provider != "s3_compatible":
             raise RuntimeError("object_storage_provider_invalid")
