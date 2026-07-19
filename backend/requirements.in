@@ -2,7 +2,7 @@
 # Lockfile generálás: pip-compile requirements.in --generate-hashes -o requirements.txt
 fastapi~=0.139.2
 uvicorn~=0.34.3
-SQLAlchemy>=2,<3
+SQLAlchemy>=2.0.51,<3
 psycopg2-binary~=2.9.9
 pydantic>=2,<3
 pydantic-settings~=2.11.0
