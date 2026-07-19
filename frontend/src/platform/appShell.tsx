@@ -136,6 +136,7 @@ export default function AppShell() {
         path === "/install-login" ||
         path === "/install-expired" ||
         path === "/install-email-sent" ||
+        path === "/confirm-signup" ||
         path === "/demo" ||
         path === "/demo-login" ||
         path === "/demo-expired" ||

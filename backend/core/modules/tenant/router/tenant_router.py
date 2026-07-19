@@ -12,15 +12,13 @@ from fastapi.responses import FileResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from core.kernel.cache import redis_configured
-from core.kernel.deps.facade import get_tenant_repository
 from core.modules.tenant.dependencies import get_tenant_signup_service
 from core.kernel.config.config_loader import settings
 from core.kernel.config.config_loader import get_app_env
 from core.kernel.config.environment import is_deployed_env
 from core.kernel.security.rate_limit import limiter
-from core.modules.tenant.repositories import TenantRepository
 from shared.utils.slug import slug_is_valid
-from core.modules.tenant.router.requests import TenantSignupRequest
+from core.modules.tenant.router.requests import ConfirmSignupRequest, TenantSignupRequest
 from core.modules.tenant.service import TenantSignupService
 from core.modules.tenant.signup.errors import (
     DemoAlreadyExistsError,
@@ -31,6 +29,8 @@ from core.modules.tenant.signup.errors import (
     DemoSignupInvalidEmailDomainError,
     DemoSignupRateLimitedError,
     DemoSessionRequiredError,
+    DemoSignupVerificationExpiredError,
+    DemoSignupVerificationInvalidError,
     InvalidSlugError,
     NameRequiredError,
 )
@@ -107,7 +107,7 @@ def _ensure_demo_signup_redis_or_503() -> None:
 def check_slug(
     request: Request,
     slug: str = "",
-    tenant_repo: TenantRepository = Depends(get_tenant_repository),
+    service: TenantSignupService = Depends(get_tenant_signup_service),
 ):
     slug = (slug or "").strip().lower()
     if not slug:
@@ -115,7 +115,7 @@ def check_slug(
     if not slug_is_valid(slug):
         return {"available": False, "slug": slug}
     try:
-        available = tenant_repo.get_by_slug(slug) is None
+        available = service.is_slug_available(slug)
     except SQLAlchemyError as exc:
         _log.exception("installer check-slug DB error: %s", exc)
         raise HTTPException(
@@ -149,8 +149,8 @@ def tenant_signup(
     _DEMO_EXISTS_DETAIL = {
         "reason": "demo_exists",
         "message": (
-            "Ezzel az email címmel már hoztál létre demo oldalt. "
-            "Az elérést elküldtük emailben, de ha szeretnél másik elérést, elküldjük újra."
+            "Ezzel az email címmel már indítottál demo regisztrációt. "
+            "Ha szeretnél új linket, elküldjük újra."
         ),
     }
     try:
@@ -207,9 +207,13 @@ def tenant_signup(
     return {
         "slug": result.slug,
         "message": (
-            "A demo környezet elkészült. Emailben küldtünk egy jelszóbeállító linket."
-            if result.created_new
-            else "A jelszóbeállító linket újra elküldtük emailben."
+            "Elküldtük a megerősítő emailt. Nyisd meg a linket az emailben, majd állítsd be a jelszavad."
+            if getattr(result, "awaiting_email_verification", False)
+            else (
+                "A demo környezet elkészült. Emailben küldtünk egy jelszóbeállító linket."
+                if result.created_new
+                else "A jelszóbeállító linket újra elküldtük emailben."
+            )
         ),
         "host_hint": result.host_hint,
         "demo_login_token": (
@@ -219,6 +223,54 @@ def tenant_signup(
         ),
         "created_new": result.created_new,
         "resent_existing": result.resent_existing,
+        "awaiting_email_verification": bool(getattr(result, "awaiting_email_verification", False)),
+    }
+
+
+@router.post("/installer/confirm-signup")
+@limiter.limit("10/minute")
+def confirm_signup(
+    request: Request,
+    body: ConfirmSignupRequest,
+    service: TenantSignupService = Depends(get_tenant_signup_service),
+):
+    """Email megerősítés → tenant provision → set-password URL a tenant hoston."""
+    token = str(body.token or "").strip()
+    if not token:
+        raise HTTPException(
+            status_code=400,
+            detail={"reason": "missing", "message": "Hiányzik a megerősítő token."},
+        )
+    try:
+        result = service.confirm_signup(token=token)
+    except DemoSignupVerificationExpiredError:
+        raise HTTPException(
+            status_code=410,
+            detail={
+                "reason": "expired",
+                "message": "A megerősítő link lejárt. Indítsd újra a regisztrációt.",
+            },
+        )
+    except DemoSignupVerificationInvalidError:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "reason": "invalid",
+                "message": "A megerősítő link érvénytelen vagy már felhasználták.",
+            },
+        )
+    except SQLAlchemyError as exc:
+        _log.exception("installer confirm-signup DB error: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="A megerősítés ideiglenesen nem elérhető. Próbáld később.",
+        )
+    return {
+        "slug": result.slug,
+        "host_hint": result.host_hint,
+        "email": result.email,
+        "set_password_url": result.set_password_url,
+        "message": "Az email címed megerősítve. Most állítsd be a jelszavad.",
     }
 
 

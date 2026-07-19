@@ -21,6 +21,9 @@ class TenantSignupService:
     def resolve_demo_login_redirect(self, token: str) -> str:
         return self._orchestrator.resolve_demo_login_redirect(token)
 
+    def confirm_signup(self, *, token: str):
+        return self._orchestrator.confirm_signup(token=token)
+
     def signup(self, **kwargs) -> DemoSignupResult:
         return self._orchestrator.signup(**kwargs)
 

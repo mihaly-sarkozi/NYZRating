@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
+
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
@@ -40,6 +43,26 @@ class DemoSignupRepository:
             ).first()
         return str(row[0]) if row else None
 
+    def is_slug_reserved(self, slug: str) -> bool:
+        normalized = (slug or "").strip().lower()
+        if not normalized:
+            return False
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT 1
+                    FROM {DEMO_SESSION_TABLE}
+                    WHERE LOWER(tenant_slug) = :slug
+                      AND completed_at IS NULL
+                    LIMIT 1
+                    """
+                ),
+                {"slug": normalized},
+            ).first()
+        return bool(row)
+
     def reserve_slug(self, *, session_id: str, requested_name: str, email: str, tenant_slug: str) -> bool:
         self.ensure_session_table()
         try:
@@ -62,6 +85,109 @@ class DemoSignupRepository:
         except IntegrityError:
             return False
 
+    def save_pending_verification(
+        self,
+        *,
+        session_id: str,
+        verification_token_hash: str,
+        verification_expires_at: datetime,
+        owner_name: str,
+        tenant_name: str,
+        preferred_locale: str,
+        plan_code: str,
+        subscription_period: str,
+    ) -> None:
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    UPDATE {DEMO_SESSION_TABLE}
+                    SET verification_token_hash = :verification_token_hash,
+                        verification_expires_at = :verification_expires_at,
+                        verified_at = NULL,
+                        owner_name = :owner_name,
+                        tenant_name = :tenant_name,
+                        preferred_locale = :preferred_locale,
+                        plan_code = :plan_code,
+                        subscription_period = :subscription_period
+                    WHERE session_id = :session_id
+                      AND completed_at IS NULL
+                    """
+                ),
+                {
+                    "session_id": session_id,
+                    "verification_token_hash": verification_token_hash,
+                    "verification_expires_at": verification_expires_at,
+                    "owner_name": owner_name,
+                    "tenant_name": tenant_name,
+                    "preferred_locale": preferred_locale,
+                    "plan_code": plan_code,
+                    "subscription_period": subscription_period,
+                },
+            )
+
+    def get_pending_by_verification_token_hash(self, token_hash: str) -> dict[str, Any] | None:
+        normalized = (token_hash or "").strip().lower()
+        if not normalized:
+            return None
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT session_id, email, tenant_slug, requested_name,
+                           owner_name, tenant_name, preferred_locale,
+                           plan_code, subscription_period,
+                           verification_expires_at, verified_at, completed_at
+                    FROM {DEMO_SESSION_TABLE}
+                    WHERE verification_token_hash = :token_hash
+                    LIMIT 1
+                    """
+                ),
+                {"token_hash": normalized},
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def find_latest_pending_session_by_email(self, email: str) -> dict[str, Any] | None:
+        normalized_email = (email or "").strip().lower()
+        if not normalized_email:
+            return None
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT session_id, email, tenant_slug, requested_name,
+                           owner_name, tenant_name, preferred_locale,
+                           plan_code, subscription_period,
+                           verification_expires_at, verified_at, completed_at
+                    FROM {DEMO_SESSION_TABLE}
+                    WHERE LOWER(TRIM(email)) = :email
+                      AND completed_at IS NULL
+                      AND verification_token_hash IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {"email": normalized_email},
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def mark_session_verified(self, session_id: str) -> None:
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    UPDATE {DEMO_SESSION_TABLE}
+                    SET verified_at = NOW()
+                    WHERE session_id = :session_id
+                    """
+                ),
+                {"session_id": session_id},
+            )
+
     def mark_session_completed(self, session_id: str) -> None:
         self.ensure_session_table()
         with self._engine.begin() as conn:
@@ -69,7 +195,9 @@ class DemoSignupRepository:
                 text(
                     f"""
                     UPDATE {DEMO_SESSION_TABLE}
-                    SET completed_at = NOW()
+                    SET completed_at = NOW(),
+                        verified_at = COALESCE(verified_at, NOW()),
+                        verification_token_hash = NULL
                     WHERE session_id = :session_id
                     """
                 ),
@@ -157,6 +285,22 @@ class DemoSignupRepository:
                 {"email": normalized_email},
             ).first()
         return bool(row)
+
+    def cleanup_expired_pending_sessions(self) -> int:
+        """Törli a lejárt, még nem megerősített (és nem completed) sessionöket."""
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    f"""
+                    DELETE FROM {DEMO_SESSION_TABLE}
+                    WHERE completed_at IS NULL
+                      AND verification_expires_at IS NOT NULL
+                      AND verification_expires_at <= NOW()
+                    """
+                )
+            )
+        return int(getattr(result, "rowcount", 0) or 0)
 
     def cleanup_expired_demo_tenants(self) -> int:
         with self._engine.begin() as conn:

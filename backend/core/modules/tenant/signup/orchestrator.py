@@ -28,7 +28,7 @@ from core.modules.tenant.ports import TenantRepositoryPort
 from core.modules.tenant.slug.policy import normalize_demo_locale
 from core.modules.tenant.repositories.demo_signup_repository import DemoSignupRepository
 from core.modules.tenant.signup.new_demo_signup import DemoNewSignupUseCase
-from core.modules.tenant.signup.orchestrator_result import DemoSignupResult
+from core.modules.tenant.signup.orchestrator_result import DemoConfirmSignupResult, DemoSignupResult
 from core.modules.tenant.signup.resend_demo import DemoSignupResendUseCase
 from core.modules.tenant.slug.reservation import DemoSlugReserver
 from core.modules.tenant.tokens.demo_jwt import DemoLoginTokenService
@@ -150,10 +150,18 @@ class TenantSignupOrchestrator:
     def is_slug_available(self, slug: str) -> bool:
         if not slug_is_valid(slug):
             return False
-        return self._tenant_repo.get_by_slug(slug) is None
+        if self._tenant_repo.get_by_slug(slug) is not None:
+            return False
+        if hasattr(self._demo_signup_repo, "is_slug_reserved") and self._demo_signup_repo.is_slug_reserved(slug):
+            return False
+        return True
 
     def resolve_demo_login_redirect(self, token: str) -> str:
         return self._demo_login_tokens.resolve_demo_login_redirect(token)
+
+    def confirm_signup(self, *, token: str) -> DemoConfirmSignupResult:
+        self._maybe_cleanup_expired_demos()
+        return self._new_signup_use_case.confirm_and_provision(token=token)
 
     def _find_demo_tenant_by_email(self, email: str):
         slug = self._demo_signup_repo.find_latest_completed_tenant_slug_by_email(email)
@@ -193,6 +201,7 @@ class TenantSignupOrchestrator:
                 return
             self._last_cleanup_at = now_ts
         try:
+            self._demo_signup_repo.cleanup_expired_pending_sessions()
             self._demo_signup_repo.cleanup_expired_demo_tenants()
         except Exception:
             return
@@ -276,6 +285,18 @@ class TenantSignupOrchestrator:
                 demo_session_id=demo_session_id,
             )
 
+        require_verify = bool(getattr(settings, "demo_signup_require_email_verification", True))
+        pending = None
+        if require_verify and hasattr(self._demo_signup_repo, "find_latest_pending_session_by_email"):
+            pending = self._demo_signup_repo.find_latest_pending_session_by_email(normalized_email)
+        if pending is not None:
+            if not resend_existing_access:
+                raise DemoAlreadyExistsError()
+            return self._new_signup_use_case.resend_pending_verification(
+                email=normalized_email,
+                preferred_locale=preferred_locale,
+            )
+
         self._enforce_signup_limits(
             email=normalized_email,
             demo_session_id=demo_session_id,
@@ -293,7 +314,7 @@ class TenantSignupOrchestrator:
             normalized_period = (subscription_period or "monthly").strip().lower() or "monthly"
             tenant_name = (company or owner_name or kb_name or slug).strip() or slug
 
-            result = self._new_signup_use_case.execute(
+            signup_kwargs = dict(
                 slug=slug,
                 email=normalized_email,
                 owner_name=owner_name or company,
@@ -303,6 +324,10 @@ class TenantSignupOrchestrator:
                 subscription_period=normalized_period,
                 demo_session_id=demo_session_id,
             )
+            if require_verify:
+                result = self._new_signup_use_case.start_pending(**signup_kwargs)
+            else:
+                result = self._new_signup_use_case.execute(**signup_kwargs)
             increment_metric("demo.signup.success_total", 1.0)
             return result
         except Exception as exc:
@@ -330,4 +355,4 @@ class TenantSignupOrchestrator:
         )
 
 
-__all__ = ["DemoSignupResult", "TenantSignupOrchestrator"]
+__all__ = ["DemoSignupResult", "DemoConfirmSignupResult", "TenantSignupOrchestrator"]

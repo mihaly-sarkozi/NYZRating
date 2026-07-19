@@ -69,10 +69,24 @@ export interface InstallSignupResponse {
   demo_login_token: string;
   created_new: boolean;
   resent_existing: boolean;
+  awaiting_email_verification?: boolean;
 }
 
 export async function installSignup(body: InstallSignupBody): Promise<InstallSignupResponse> {
   const { data } = await api.post<InstallSignupResponse>(`${BASE}/installer/tenant-signup`, body);
+  return data;
+}
+
+export interface ConfirmSignupResponse {
+  slug: string;
+  host_hint: string;
+  email: string;
+  set_password_url: string;
+  message: string;
+}
+
+export async function confirmInstallSignup(token: string): Promise<ConfirmSignupResponse> {
+  const { data } = await api.post<ConfirmSignupResponse>(`${BASE}/installer/confirm-signup`, { token });
   return data;
 }
 

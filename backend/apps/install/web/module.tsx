@@ -34,6 +34,12 @@ export function getModule(): FrontendModuleDefinition {
         layout: "public",
         loader: () => import("@frontend/features/install/pages/InstallEmailSentPage"),
       },
+      {
+        key: "install.confirm-signup",
+        path: "/confirm-signup",
+        layout: "public",
+        loader: () => import("@frontend/features/install/pages/ConfirmSignupPage"),
+      },
       // Legacy /demo* → /install* redirects (a /demo telepítőfolyamat megmarad)
       {
         key: "install.legacy.page",

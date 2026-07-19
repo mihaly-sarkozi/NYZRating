@@ -92,6 +92,16 @@ class UserEmailPort(Protocol):
     def send_demo_set_password_invite(self, to_email: str, set_password_link: str, *, demo_expires_at, lang: str | None = None) -> bool:
         ...
 
+    def send_demo_confirm_signup(
+        self,
+        to_email: str,
+        confirm_signup_link: str,
+        *,
+        tenant_slug: str,
+        lang: str | None = None,
+    ) -> bool:
+        ...
+
 
 class BillingTrainingStatusPort(Protocol):
     def tenant_has_training_material(self, tenant) -> bool:

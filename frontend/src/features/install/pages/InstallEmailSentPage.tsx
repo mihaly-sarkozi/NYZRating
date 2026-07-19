@@ -4,6 +4,8 @@ export default function InstallEmailSentPage() {
   const [searchParams] = useSearchParams();
   const email = (searchParams.get("email") || "").trim();
   const resent = searchParams.get("resent") === "1";
+  const mode = (searchParams.get("mode") || "confirm").trim();
+  const isConfirm = mode !== "password";
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)] flex flex-col">
@@ -14,11 +16,17 @@ export default function InstallEmailSentPage() {
       </header>
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="max-w-lg w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] p-6 md:p-8">
-          <h1 className="text-2xl font-bold mb-4">Elküldtük a jelszóbeállító linkedet emailben</h1>
+          <h1 className="text-2xl font-bold mb-4">
+            {isConfirm ? "Elküldtük a megerősítő emailt" : "Elküldtük a jelszóbeállító linkedet emailben"}
+          </h1>
           <p className="text-[var(--color-muted-foreground)] mb-3">
-            {resent
-              ? "Az új jelszóbeállító linket elküldtük. Nyisd meg az emailben kapott linket, állítsd be a jelszavadat, és már tesztelhetsz is."
-              : "A környezeted elkészült. Nyisd meg az emailben kapott linket, állítsd be a jelszavadat, és már tesztelhetsz is."}
+            {isConfirm
+              ? resent
+                ? "Új megerősítő linket küldtünk. Nyisd meg az emailben kapott linket, erősítsd meg a címedet, majd állítsd be a jelszavad."
+                : "Nyisd meg az emailben kapott megerősítő linket. A megerősítés után létrehozzuk a környezetedet, és beállíthatod a jelszavad."
+              : resent
+                ? "Az új jelszóbeállító linket elküldtük. Nyisd meg az emailben kapott linket, állítsd be a jelszavadat, és már tesztelhetsz is."
+                : "A környezeted elkészült. Nyisd meg az emailben kapott linket, állítsd be a jelszavadat, és már tesztelhetsz is."}
           </p>
           <p className="text-[var(--color-muted-foreground)] mb-3">
             Ha nem látod az üzenetet, ellenőrizd a spam/promóciók mappát is.

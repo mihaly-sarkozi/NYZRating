@@ -51,6 +51,7 @@ api.interceptors.request.use((config) => {
     /^\/auth\/confirm-email(\/|$)/.test(url) ||
     /^\/auth\/demo-login(\/|$)/.test(url) ||
     /^\/users\/set-password(\/|$)/.test(url) ||
+    /^\/installer\/confirm-signup(\/|$)/.test(url) ||
     /^\/platform-admin\/auth\/login(\/|$)/.test(url) ||
     /^\/platform-admin\/auth\/csrf-token(\/|$)/.test(url) ||
     /^\/platform-admin\/auth\/refresh(\/|$)/.test(url) ||

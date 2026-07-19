@@ -683,16 +683,44 @@ def _apply_public_demo_signup_schema(engine: Engine) -> None:
                     email VARCHAR(255) NOT NULL,
                     tenant_slug VARCHAR(64) NOT NULL UNIQUE,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                    completed_at TIMESTAMPTZ NULL
+                    completed_at TIMESTAMPTZ NULL,
+                    verification_token_hash VARCHAR(64) NULL,
+                    verification_expires_at TIMESTAMPTZ NULL,
+                    verified_at TIMESTAMPTZ NULL,
+                    owner_name VARCHAR(255) NULL,
+                    tenant_name VARCHAR(255) NULL,
+                    preferred_locale VARCHAR(8) NULL,
+                    plan_code VARCHAR(64) NULL,
+                    subscription_period VARCHAR(32) NULL
                 )
+                """
+            )
+        )
+        for ddl in (
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS verification_token_hash VARCHAR(64) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS preferred_locale VARCHAR(8) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS plan_code VARCHAR(64) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS subscription_period VARCHAR(32) NULL",
+        ):
+            conn.execute(text(ddl))
+        conn.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS ix_demo_signup_sessions_email_completed
+                ON public.demo_signup_sessions(LOWER(TRIM(email)), completed_at)
                 """
             )
         )
         conn.execute(
             text(
                 """
-                CREATE INDEX IF NOT EXISTS ix_demo_signup_sessions_email_completed
-                ON public.demo_signup_sessions(LOWER(TRIM(email)), completed_at)
+                CREATE INDEX IF NOT EXISTS ix_demo_signup_sessions_verification_token_hash
+                ON public.demo_signup_sessions(verification_token_hash)
+                WHERE verification_token_hash IS NOT NULL
                 """
             )
         )

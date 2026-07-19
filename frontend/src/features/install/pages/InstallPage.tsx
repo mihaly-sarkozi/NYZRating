@@ -50,6 +50,7 @@ export default function InstallPage() {
     const params = new URLSearchParams();
     params.set("email", email.trim());
     if (resendExistingAccess) params.set("resent", "1");
+    params.set("mode", res.awaiting_email_verification ? "confirm" : "password");
     navigate(`/install-email-sent?${params.toString()}`, { replace: true });
     return res;
   };

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import importlib
 
-__all__ = ["TenantSignupRequest"]
+__all__ = ["TenantSignupRequest", "ConfirmSignupRequest"]
 
 
 def __getattr__(name: str):
@@ -14,5 +14,10 @@ def __getattr__(name: str):
         return getattr(
             importlib.import_module("core.modules.tenant.router.requests.tenant_signup_request"),
             "TenantSignupRequest",
+        )
+    if name == "ConfirmSignupRequest":
+        return getattr(
+            importlib.import_module("core.modules.tenant.router.requests.confirm_signup_request"),
+            "ConfirmSignupRequest",
         )
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

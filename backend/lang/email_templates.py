@@ -97,6 +97,23 @@ Ha nem te kérted a demo létrehozását, hagyd figyelmen kívül ezt az emailt.
 Üdvözlettel,
 {signature}""",
         },
+        "demo_confirm_signup": {
+            "subject": "NYZ Rating - Erősítsd meg az email címed",
+            "body": """Szia!
+
+Majdnem kész a demo regisztrációd ({tenant_slug}).
+
+Az email címed megerősítéséhez kattints az alábbi linkre:
+
+{confirm_signup_link}
+
+A megerősítés után létrejön a környezeted, és beállíthatod a jelszavad.
+
+Ha nem te kérted a regisztrációt, hagyd figyelmen kívül ezt az emailt.
+
+Üdvözlettel,
+{signature}""",
+        },
     },
     "en": {
         "2fa": {
@@ -187,6 +204,23 @@ If you did not request this demo, please ignore this email.
 Best regards,
 {signature}""",
         },
+        "demo_confirm_signup": {
+            "subject": "NYZ Rating - Confirm your email address",
+            "body": """Hello,
+
+Your demo registration for ({tenant_slug}) is almost ready.
+
+Confirm your email address by opening this link:
+
+{confirm_signup_link}
+
+After confirmation your workspace will be created and you can set your password.
+
+If you did not request this registration, please ignore this email.
+
+Best regards,
+{signature}""",
+        },
     },
     "es": {
         "2fa": {
@@ -273,6 +307,23 @@ El acceso demo es válido exactamente hasta:
 {demo_expires_at}
 
 Si no solicitaste esta demo, ignora este correo.
+
+Saludos,
+{signature}""",
+        },
+        "demo_confirm_signup": {
+            "subject": "NYZ Rating - Confirma tu correo electrónico",
+            "body": """Hola:
+
+Tu registro demo para ({tenant_slug}) está casi listo.
+
+Confirma tu correo abriendo este enlace:
+
+{confirm_signup_link}
+
+Tras la confirmación se creará tu entorno y podrás configurar tu contraseña.
+
+Si no solicitaste este registro, ignora este correo.
 
 Saludos,
 {signature}""",

@@ -234,5 +234,21 @@ class EmailService:
         )
         return self.send_email(to_email, subject, body)
 
+    def send_demo_confirm_signup(
+        self,
+        to_email: str,
+        confirm_signup_link: str,
+        *,
+        tenant_slug: str,
+        lang: str | None = None,
+    ) -> bool:
+        subject, body = get_email_template(
+            "demo_confirm_signup",
+            lang=lang or DEFAULT_LANG,
+            confirm_signup_link=confirm_signup_link,
+            tenant_slug=tenant_slug,
+        )
+        return self.send_email(to_email, subject, body)
+
 
 __all__ = ["EmailService", "mask_email_body_for_log"]

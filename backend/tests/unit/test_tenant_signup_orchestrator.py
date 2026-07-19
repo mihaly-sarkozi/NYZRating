@@ -88,6 +88,21 @@ def test_signup_requires_demo_session_id_when_missing(monkeypatch: pytest.Monkey
         def find_latest_completed_tenant_slug_by_email(self, email: str):
             return None
 
+        def has_active_demo_for_email(self, email: str) -> bool:
+            return False
+
+        def find_latest_pending_session_by_email(self, email: str):
+            return None
+
+        def cleanup_expired_pending_sessions(self) -> int:
+            return 0
+
+        def cleanup_expired_demo_tenants(self) -> int:
+            return 0
+
+        def is_slug_reserved(self, slug: str) -> bool:
+            return False
+
     class FakeTenantRepository:
         def get_by_slug(self, slug: str):
             return None

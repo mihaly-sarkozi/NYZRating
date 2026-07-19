@@ -15,6 +15,15 @@ class DemoSignupResult:
     demo_login_token: str
     created_new: bool
     resent_existing: bool = False
+    awaiting_email_verification: bool = False
 
 
-__all__ = ["DemoSignupResult"]
+@dataclass
+class DemoConfirmSignupResult:
+    slug: str
+    host_hint: str
+    set_password_url: str
+    email: str
+
+
+__all__ = ["DemoSignupResult", "DemoConfirmSignupResult"]

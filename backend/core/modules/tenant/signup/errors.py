@@ -53,3 +53,11 @@ class DemoSignupDisposableEmailError(SignupError):
 
 class DemoSignupInvalidEmailDomainError(SignupError):
     """Email domain nem érvényes / nem kézbesíthető."""
+
+
+class DemoSignupVerificationInvalidError(SignupError):
+    """Email megerősítő token érvénytelen vagy hiányzik."""
+
+
+class DemoSignupVerificationExpiredError(SignupError):
+    """Email megerősítő token lejárt."""

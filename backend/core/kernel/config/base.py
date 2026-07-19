@@ -232,6 +232,8 @@ class BaseConfig(BaseSettings):
     demo_signup_captcha_secret: str = ""
     demo_signup_require_captcha: bool = False
     demo_signup_require_email_verification: bool = True
+    # Pending signup email-confirm TTL (óra); lejárat után a session felszabadítható.
+    demo_signup_verification_ttl_hours: int = 24
     demo_signup_expose_login_token_in_response: bool = False
     demo_signup_block_disposable_emails: bool = True
     demo_signup_external_disposable_domains_path: str = ""
