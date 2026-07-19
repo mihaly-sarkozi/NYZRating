@@ -59,6 +59,7 @@ export interface InstallSignupBody {
   plan_code?: string;
   billing_period?: string;
   demo_session_id: string;
+  captcha_token?: string;
 }
 
 export interface InstallSignupResponse {

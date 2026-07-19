@@ -135,10 +135,11 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.prod.Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL required}
+        VITE_TENANT_DOMAIN: ${TENANT_BASE_DOMAIN:?TENANT_BASE_DOMAIN required}
+        VITE_TURNSTILE_SITE_KEY: ${VITE_TURNSTILE_SITE_KEY:-}
     container_name: nyzrating-prod-frontend
-    environment:
-      VITE_TENANT_DOMAIN: ${TENANT_BASE_DOMAIN:?TENANT_BASE_DOMAIN required}
-      VITE_API_URL: ${VITE_API_URL:?VITE_API_URL required}
     ports:
       - "127.0.0.1:4173:4173"
     restart: unless-stopped

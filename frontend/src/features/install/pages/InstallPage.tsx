@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { installSignup, type InstallSignupResponse } from "../api/installApi";
+import TurnstileWidget, { getTurnstileSiteKey, resetTurnstile } from "../components/TurnstileWidget";
 import { useTranslation } from "../../../i18n";
 
 export const INSTALL_SESSION_STORAGE_KEY = "nyzrating_install_session_id";
@@ -34,11 +35,20 @@ export default function InstallPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [existingInstall, setExistingInstall] = useState<{ email: string } | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRequired = Boolean(getTurnstileSiteKey());
+  const onCaptchaTokenChange = useCallback((token: string | null) => {
+    setCaptchaToken(token);
+  }, []);
 
-  const canSubmit = Boolean(email.trim() && companyName.trim());
+  const canSubmit =
+    Boolean(email.trim() && companyName.trim()) && (!turnstileRequired || Boolean(captchaToken));
 
   const submitInstall = async (resendExistingAccess: boolean): Promise<InstallSignupResponse> => {
     const company = companyName.trim();
+    if (turnstileRequired && !captchaToken) {
+      throw new Error("Captcha token missing");
+    }
     // Ugyanaz a session a retry/resend alatt → slug foglalás idempotens marad.
     const sessionId = getOrCreateInstallSessionId();
     const res = await installSignup({
@@ -51,8 +61,11 @@ export default function InstallPage() {
       plan_code: "free",
       billing_period: "monthly",
       demo_session_id: sessionId,
+      captcha_token: captchaToken || undefined,
     });
     sessionStorage.removeItem(INSTALL_SESSION_STORAGE_KEY);
+    resetTurnstile();
+    setCaptchaToken(null);
     const params = new URLSearchParams();
     params.set("email", email.trim());
     if (resendExistingAccess) params.set("resent", "1");
@@ -86,21 +99,12 @@ export default function InstallPage() {
         normalizedMessage.includes("already") ||
         normalizedMessage.includes("már") ||
         normalizedMessage.includes("használatban");
+      resetTurnstile();
+      setCaptchaToken(null);
       if (isExistingInstallLike) {
-        try {
-          await submitInstall(true);
-          setExistingInstall(null);
-          setSubmitError("");
-        } catch (resendErr: unknown) {
-          const resendData =
-            resendErr && typeof resendErr === "object" && "response" in resendErr
-              ? (resendErr as { response?: { data?: { detail?: string | { message?: string } } } }).response?.data
-              : null;
-          const resendDetail = resendData?.detail;
-          const resendMessage =
-            typeof resendDetail === "object" && resendDetail ? resendDetail.message : resendDetail;
-          setSubmitError(typeof resendMessage === "string" ? resendMessage : "Hiba történt. Próbáld újra.");
-        }
+        // Turnstile token egyszer használható → ne auto-resendeljünk; új captcha + modal.
+        setExistingInstall({ email: email.trim() });
+        setSubmitError("");
       } else {
         setSubmitError(typeof message === "string" ? message : "Hiba történt. Próbáld újra.");
       }
@@ -117,6 +121,8 @@ export default function InstallPage() {
       await submitInstall(true);
       setExistingInstall(null);
     } catch (err: unknown) {
+      resetTurnstile();
+      setCaptchaToken(null);
       const responseData =
         err && typeof err === "object" && "response" in err
           ? (err as { response?: { data?: { detail?: string | { message?: string } } } }).response?.data
@@ -172,6 +178,10 @@ export default function InstallPage() {
             />
           </div>
 
+          {turnstileRequired ? (
+            <TurnstileWidget onTokenChange={onCaptchaTokenChange} className="min-h-[65px]" />
+          ) : null}
+
           {submitError && <p className="text-sm text-red-600">{submitError}</p>}
           <div className="pt-2">
             <button
@@ -221,10 +231,10 @@ export default function InstallPage() {
               Ezzel az email címmel már hoztál létre telepítést.
             </p>
             <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
-              A jelszóbeállító linket elküldtük emailben, de ha szeretnél újat, elküldjük ismét emailben.
+              Oldd meg újra a captchát az űrlapon, majd kattints ide, ha új linket szeretnél.
             </p>
             <p className="text-xs text-[var(--color-muted-foreground)] mb-4">
-              Ha a folyamat automatikusan továbbment, ezt az ablakot nem fogod látni.
+              A megerősítő / jelszóbeállító linket emailben küldjük.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button
