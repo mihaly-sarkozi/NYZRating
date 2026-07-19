@@ -121,6 +121,7 @@ class DemoNewSignupUseCase:
         email: str,
         demo_expires_at,
         preferred_locale: str,
+        send_email: bool = True,
     ) -> str:
         invite_repo = self._user_service.invite_token_repo
         if invite_repo is None:
@@ -140,7 +141,8 @@ class DemoNewSignupUseCase:
             current_tenant_schema.reset(tenant_ctx)
 
         set_password_link = build_set_password_link(self._tenant_frontend_base_url(tenant_slug), invite_payload.raw_token)
-        if self._user_service.email_service and set_password_link:
+        # Confirm flow átirányít a set-password oldalra — ott felesleges az email.
+        if send_email and self._user_service.email_service and set_password_link:
             self._user_service.email_service.send_demo_set_password_invite(
                 email,
                 set_password_link,
@@ -288,6 +290,7 @@ class DemoNewSignupUseCase:
                     email=email,
                     demo_expires_at=demo_expires_at,
                     preferred_locale=preferred_locale,
+                    send_email=False,
                 )
                 return DemoConfirmSignupResult(
                     slug=slug,
@@ -355,6 +358,7 @@ class DemoNewSignupUseCase:
                 email=email,
                 demo_expires_at=demo_expires_at,
                 preferred_locale=preferred_locale,
+                send_email=False,
             )
             self._demo_signup_repo.mark_session_verified(demo_session_id)
             self._demo_signup_repo.mark_session_completed(demo_session_id)

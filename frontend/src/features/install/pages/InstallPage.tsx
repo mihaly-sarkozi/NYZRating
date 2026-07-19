@@ -37,7 +37,8 @@ export default function InstallPage() {
   const [submitting, setSubmitting] = useState(false);
   const [existingInstall, setExistingInstall] = useState<{ email: string } | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const turnstileRequired = Boolean(getTurnstileSiteKey());
+  const turnstileSiteKey = getTurnstileSiteKey();
+  const turnstileRequired = Boolean(turnstileSiteKey);
   const onCaptchaTokenChange = useCallback((token: string | null) => {
     setCaptchaToken(token);
   }, []);

@@ -90,6 +90,7 @@ class BaseConfig(BaseSettings):
     security_csp_extra_connect_src: str = ""
     security_csp_extra_img_src: str = ""
     security_csp_extra_frame_src: str = ""
+    security_csp_extra_script_src: str = ""
 
     # Auth/JWT: élesben .env-ben JWT_SECRET kötelező (pl. openssl rand -hex 64)
     jwt_secret: str = secrets.token_hex(64)

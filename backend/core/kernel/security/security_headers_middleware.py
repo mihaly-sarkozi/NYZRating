@@ -35,8 +35,10 @@ def _csp_header_value() -> str:
     extra_connect = _split_sources(getattr(settings, "security_csp_extra_connect_src", ""))
     extra_img = _split_sources(getattr(settings, "security_csp_extra_img_src", ""))
     extra_frame = _split_sources(getattr(settings, "security_csp_extra_frame_src", ""))
+    extra_script = _split_sources(getattr(settings, "security_csp_extra_script_src", ""))
     directives["connect-src"].extend(extra_connect)
     directives["img-src"].extend(extra_img)
+    directives["script-src"].extend(extra_script)
     if extra_frame:
         directives["frame-src"] = ["'self'", *extra_frame]
     return "; ".join(f"{name} {' '.join(values)}" for name, values in directives.items())

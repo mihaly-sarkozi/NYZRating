@@ -205,6 +205,7 @@ def test_confirm_and_provision_creates_tenant(monkeypatch: pytest.MonkeyPatch) -
     assert provisioning.calls == 1
     assert confirmed.slug == "acme"
     assert "/set-password?token=" in confirmed.set_password_url
+    assert email.set_password_links == []
     assert demo_repo.sessions["sess-1"]["completed_at"] is not None
 
 
@@ -246,6 +247,7 @@ def test_confirm_idempotent_reissues_set_password(monkeypatch: pytest.MonkeyPatc
     assert "/set-password?token=" in first.set_password_url
     assert "/set-password?token=" in second.set_password_url
     assert second.set_password_url != first.set_password_url
+    assert email.set_password_links == []
 
 
 def test_confirm_invalid_token_raises() -> None:
