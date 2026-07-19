@@ -4,6 +4,9 @@ import { confirmInstallSignup } from "../api/installApi";
 
 type Status = "loading" | "ok" | "invalid" | "expired" | "error";
 
+/** Strict Mode / gyors újramount ellen: ugyanaz a token csak egyszer induljon el. */
+const confirmInFlightTokens = new Set<string>();
+
 export default function ConfirmSignupPage() {
   const [searchParams] = useSearchParams();
   const token = (searchParams.get("token") || "").trim();
@@ -16,6 +19,9 @@ export default function ConfirmSignupPage() {
       setMessage("Hiányzó vagy érvénytelen megerősítő link.");
       return;
     }
+    if (confirmInFlightTokens.has(token)) return;
+    confirmInFlightTokens.add(token);
+
     let cancelled = false;
     confirmInstallSignup(token)
       .then((res) => {
@@ -30,6 +36,7 @@ export default function ConfirmSignupPage() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        confirmInFlightTokens.delete(token);
         const ax = err as { response?: { status?: number; data?: { detail?: unknown } } };
         const detail = ax.response?.data?.detail;
         const msg =

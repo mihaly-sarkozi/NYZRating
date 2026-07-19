@@ -90,7 +90,6 @@ class _FakeDemoRepo:
 
     def mark_session_completed(self, session_id: str) -> None:
         self.sessions[session_id]["completed_at"] = datetime.now(timezone.utc)
-        self.sessions[session_id]["verification_token_hash"] = None
 
     def delete_session(self, session_id: str) -> None:
         self.sessions.pop(session_id, None)
@@ -207,6 +206,46 @@ def test_confirm_and_provision_creates_tenant(monkeypatch: pytest.MonkeyPatch) -
     assert confirmed.slug == "acme"
     assert "/set-password?token=" in confirmed.set_password_url
     assert demo_repo.sessions["sess-1"]["completed_at"] is not None
+
+
+def test_confirm_idempotent_reissues_set_password(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_settings(monkeypatch)
+    tenant_repo = _FakeTenantRepo()
+    provisioning = _FakeProvisioning(tenant_repo)
+    demo_repo = _FakeDemoRepo()
+    email = _FakeEmail()
+    user_service = SimpleNamespace(
+        email_service=email,
+        invite_token_repo=_FakeInviteRepo(),
+        user_repository=_FakeUserRepo(),
+    )
+    uc = DemoNewSignupUseCase(
+        tenant_repo=tenant_repo,
+        user_service=user_service,
+        provisioning_service=provisioning,
+        demo_signup_repository=demo_repo,
+        demo_login_token_service=object(),
+        tenant_base_domain="example.com",
+        clock=_FakeClock(),
+        tenant_signup_hooks_provider=lambda: (),
+    )
+    uc.start_pending(
+        slug="acme",
+        email="owner@example.com",
+        owner_name="Owner",
+        tenant_name="Acme",
+        preferred_locale="hu",
+        plan_code="free",
+        subscription_period="monthly",
+        demo_session_id="sess-1",
+    )
+    raw_token = email.confirm_links[-1].split("token=")[-1]
+    first = uc.confirm_and_provision(token=raw_token)
+    second = uc.confirm_and_provision(token=raw_token)
+    assert provisioning.calls == 1
+    assert "/set-password?token=" in first.set_password_url
+    assert "/set-password?token=" in second.set_password_url
+    assert second.set_password_url != first.set_password_url
 
 
 def test_confirm_invalid_token_raises() -> None:

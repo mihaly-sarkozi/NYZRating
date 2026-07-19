@@ -254,13 +254,8 @@ class DemoNewSignupUseCase:
             raise DemoSignupVerificationInvalidError()
         token_hash = hashlib.sha256(raw.encode()).hexdigest()
         pending = self._demo_signup_repo.get_pending_by_verification_token_hash(token_hash)
-        if not pending or pending.get("completed_at") is not None:
+        if not pending:
             raise DemoSignupVerificationInvalidError()
-
-        expires_at = pending.get("verification_expires_at")
-        if expires_at is not None and expires_at <= utc_now():
-            self._demo_signup_repo.delete_session(str(pending["session_id"]))
-            raise DemoSignupVerificationExpiredError()
 
         slug = str(pending["tenant_slug"])
         email = str(pending["email"]).strip().lower()
@@ -275,7 +270,36 @@ class DemoNewSignupUseCase:
         trial_days = max(1, int(getattr(settings, "demo_trial_days", 7) or 7))
         demo_expires_at = demo_trial_expires_at(self._clock.now(), days=trial_days)
 
-        self._demo_signup_repo.mark_session_verified(demo_session_id)
+        # Idempotens újracsatlakozás: a token már lefutott → új set-password link.
+        # Ha a tenant / owner hiányzik (félkész provision), essünk vissza a teljes flow-ra.
+        if pending.get("completed_at") is not None and self._tenant_repo.get_by_slug(slug) is not None:
+            try:
+                tenant_owner = self._load_tenant_owner(
+                    tenant_slug=slug,
+                    email=email,
+                    preferred_locale=preferred_locale,
+                )
+            except Exception:
+                tenant_owner = None
+            if tenant_owner is not None and tenant_owner.id is not None:
+                set_password_url = self._send_demo_set_password_email(
+                    tenant_slug=slug,
+                    user_id=tenant_owner.id,
+                    email=email,
+                    demo_expires_at=demo_expires_at,
+                    preferred_locale=preferred_locale,
+                )
+                return DemoConfirmSignupResult(
+                    slug=slug,
+                    host_hint=primary_domain,
+                    set_password_url=set_password_url,
+                    email=email,
+                )
+
+        expires_at = pending.get("verification_expires_at")
+        if expires_at is not None and expires_at <= utc_now() and pending.get("completed_at") is None:
+            self._demo_signup_repo.delete_session(demo_session_id)
+            raise DemoSignupVerificationExpiredError()
 
         try:
             if self._tenant_repo.get_by_slug(slug) is None:
@@ -332,6 +356,7 @@ class DemoNewSignupUseCase:
                 demo_expires_at=demo_expires_at,
                 preferred_locale=preferred_locale,
             )
+            self._demo_signup_repo.mark_session_verified(demo_session_id)
             self._demo_signup_repo.mark_session_completed(demo_session_id)
             if self._audit:
                 self._audit.log(

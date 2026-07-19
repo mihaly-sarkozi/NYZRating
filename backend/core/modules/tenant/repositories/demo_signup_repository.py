@@ -193,8 +193,7 @@ class DemoSignupRepository:
                     f"""
                     UPDATE {DEMO_SESSION_TABLE}
                     SET completed_at = NOW(),
-                        verified_at = COALESCE(verified_at, NOW()),
-                        verification_token_hash = NULL
+                        verified_at = COALESCE(verified_at, NOW())
                     WHERE session_id = :session_id
                     """
                 ),

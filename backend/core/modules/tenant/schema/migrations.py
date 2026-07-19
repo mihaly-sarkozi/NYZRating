@@ -41,9 +41,15 @@ def ensure_public_migration_table(engine: Engine) -> None:
 
 
 def ensure_tenant_schema(engine: Engine, slug: str) -> None:
+    from sqlalchemy.exc import IntegrityError
+
     with engine.connect() as conn:
-        conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{slug}"'))
-        _commit_if_possible(conn)
+        try:
+            conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{slug}"'))
+            _commit_if_possible(conn)
+        except IntegrityError:
+            # Postgres: párhuzamos CREATE SCHEMA IF NOT EXISTS versenyhelyzetben UniqueViolation-t dobhat.
+            _commit_if_possible(conn)
 
 
 def ensure_tenant_migration_table(engine: Engine, slug: str) -> None:
