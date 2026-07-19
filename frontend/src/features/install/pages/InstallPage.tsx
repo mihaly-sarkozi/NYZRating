@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { installSignup, type InstallSignupResponse } from "../api/installApi";
-import TurnstileWidget, { getTurnstileSiteKey, resetTurnstile } from "../components/TurnstileWidget";
+import TurnstileWidget from "../components/TurnstileWidget";
+import { getTurnstileSiteKey, resetTurnstile } from "../components/turnstileHelpers";
 import { useTranslation } from "../../../i18n";
 
 export const INSTALL_SESSION_STORAGE_KEY = "nyzrating_install_session_id";

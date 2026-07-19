@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { getTurnstileSiteKey } from "./turnstileHelpers";
 
 const TURNSTILE_SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
@@ -45,10 +46,6 @@ function loadTurnstileScript(): Promise<void> {
     document.head.appendChild(script);
   });
   return scriptLoadPromise;
-}
-
-export function getTurnstileSiteKey(): string {
-  return String(import.meta.env.VITE_TURNSTILE_SITE_KEY || "").trim();
 }
 
 type TurnstileWidgetProps = {
@@ -105,13 +102,4 @@ export default function TurnstileWidget({ onTokenChange, className }: TurnstileW
   if (!siteKey) return null;
 
   return <div ref={containerRef} className={className} />;
-}
-
-export function resetTurnstile(): void {
-  if (typeof window === "undefined" || !window.turnstile) return;
-  try {
-    window.turnstile.reset();
-  } catch {
-    /* ignore */
-  }
 }
