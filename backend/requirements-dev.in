@@ -26,4 +26,4 @@ debugpy~=1.8.0
 
 # Security scan (CI)
 pip-audit>=2.7.0
-bandit>=1.7.0
+bandit>=1.9.4
