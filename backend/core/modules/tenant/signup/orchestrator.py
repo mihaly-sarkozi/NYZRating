@@ -47,7 +47,7 @@ from core.modules.tenant.signup.errors import (
 )
 from core.kernel.config.config_loader import settings
 from core.kernel.config.config_loader import get_app_env
-from core.kernel.config.environment import is_deployed_env
+from core.kernel.config.environment import is_test_env
 from core.kernel.logging.observability import increment_metric
 from core.modules.tenant.extensions.tenant_hooks import get_tenant_signup_hooks
 from shared.utils.slug import slug_is_valid
@@ -287,10 +287,9 @@ class TenantSignupOrchestrator:
                 demo_session_id=demo_session_id,
             )
 
-        require_verify = bool(getattr(settings, "demo_signup_require_email_verification", True))
+        # Provision CSAK email-confirm után (test env kivétel).
         try:
-            if is_deployed_env(get_app_env()):
-                require_verify = True
+            require_verify = not is_test_env(get_app_env())
         except Exception:
             require_verify = True
         pending = None

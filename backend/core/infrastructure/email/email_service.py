@@ -86,18 +86,29 @@ class EmailService:
             return False
 
         if not self.user or not self.password:
-            # Ha nincs beállítva SMTP, csak logoljuk (dev környezetben). Body NEM megy ki teljesen: maszkolt preview (2FA kód, token, link token ne).
+            # Csak test (és classic local, nem cookie_secure) szimulál; egyébként valódi SMTP kell.
+            from core.kernel.config.config_loader import get_app_env
+            from core.kernel.config.environment import is_test_env, is_local_env
+
+            try:
+                env = get_app_env()
+            except Exception:
+                env = "local"
+            allow_simulate = is_test_env(env) or (
+                is_local_env(env) and not bool(getattr(settings, "cookie_secure", False))
+            )
             preview = mask_email_body_for_log(body)
             log_structured_event(
                 "core.email",
-                "email.simulated",
+                "email.simulated" if allow_simulate else "email.smtp_not_configured",
                 to_email=normalized_to_email,
                 from_email=normalized_from_email,
                 subject=subject,
                 body_preview=preview,
                 smtp_configured=False,
+                level=30 if allow_simulate else 40,
             )
-            return True
+            return bool(allow_simulate)
 
         try:
             msg = MIMEMultipart('alternative')
