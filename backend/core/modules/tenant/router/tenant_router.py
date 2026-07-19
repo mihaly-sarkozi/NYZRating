@@ -131,7 +131,7 @@ def check_slug(
 
 # Ez a függvény a(z) tenant_signup logikáját valósítja meg.
 @router.post("/installer/tenant-signup")
-@limiter.limit("5/minute")
+@limiter.limit("100/minute")
 def tenant_signup(
     request: Request,
     body: TenantSignupRequest,
