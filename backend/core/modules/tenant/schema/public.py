@@ -739,6 +739,32 @@ def _apply_public_demo_signup_schema(engine: Engine) -> None:
         _commit_if_possible(conn)
 
 
+def _apply_public_demo_signup_email_verification_schema(engine: Engine) -> None:
+    """Pending email-confirm oszlopok a demo_signup_sessions táblán (0011 után)."""
+    with engine.connect() as conn:
+        for ddl in (
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS verification_token_hash VARCHAR(64) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS tenant_name VARCHAR(255) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS preferred_locale VARCHAR(8) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS plan_code VARCHAR(64) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS subscription_period VARCHAR(32) NULL",
+        ):
+            conn.execute(text(ddl))
+        conn.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS ix_demo_signup_sessions_verification_token_hash
+                ON public.demo_signup_sessions(verification_token_hash)
+                WHERE verification_token_hash IS NOT NULL
+                """
+            )
+        )
+        _commit_if_possible(conn)
+
+
 def _apply_public_tenant_cancellation_requests_schema(engine: Engine) -> None:
     with engine.connect() as conn:
         conn.execute(
@@ -887,6 +913,11 @@ def _public_migrations() -> tuple[PublicSchemaMigration, ...]:
             revision="platform.public.0016_billing_debug_payment_outcome",
             description="Billing debug payment simulation outcome column",
             apply=_apply_public_billing_debug_payment_outcome_schema,
+        ),
+        PublicSchemaMigration(
+            revision="platform.public.0017_demo_signup_email_verification",
+            description="Demo signup pending email verification columns and index",
+            apply=_apply_public_demo_signup_email_verification_schema,
         ),
     )
 

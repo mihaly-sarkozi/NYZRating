@@ -121,6 +121,43 @@ def make_email_invite_handler(email_service: Any):
     return handle_email_invite
 
 
+def make_email_demo_confirm_signup_handler(email_service: Any):
+    """Demo signup email megerősítő link küldés."""
+    def handle_email_demo_confirm_signup(payload: dict[str, Any]) -> None:
+        ok = email_service.send_demo_confirm_signup(
+            payload.get("to_email", ""),
+            payload.get("confirm_signup_link", ""),
+            tenant_slug=str(payload.get("tenant_slug") or ""),
+            lang=payload.get("lang"),
+        )
+        if not ok:
+            raise RuntimeError("Demo confirm-signup email küldés sikertelen")
+
+    return handle_email_demo_confirm_signup
+
+
+def make_email_demo_set_password_handler(email_service: Any):
+    """Demo set-password email küldés."""
+    from datetime import datetime
+
+    def handle_email_demo_set_password(payload: dict[str, Any]) -> None:
+        raw_expires = payload.get("demo_expires_at")
+        if isinstance(raw_expires, datetime):
+            expires_at = raw_expires
+        else:
+            expires_at = datetime.fromisoformat(str(raw_expires).replace("Z", "+00:00"))
+        ok = email_service.send_demo_set_password_invite(
+            payload.get("to_email", ""),
+            payload.get("set_password_link", ""),
+            demo_expires_at=expires_at,
+            lang=payload.get("lang"),
+        )
+        if not ok:
+            raise RuntimeError("Demo set-password email küldés sikertelen")
+
+    return handle_email_demo_set_password
+
+
 # ---------------------------------------------------------------------------
 # Összesített regisztrációs belépési pont
 # ---------------------------------------------------------------------------
@@ -141,12 +178,16 @@ def register_security_audit_handlers(
     dispatcher.register("audit", make_audit_handler(audit_service))
     dispatcher.register("email_2fa", make_email_2fa_handler(email_service))
     dispatcher.register("email_invite", make_email_invite_handler(email_service))
+    dispatcher.register("email_demo_confirm_signup", make_email_demo_confirm_signup_handler(email_service))
+    dispatcher.register("email_demo_set_password", make_email_demo_set_password_handler(email_service))
 
 
 __all__ = [
     "make_audit_handler",
     "make_email_2fa_handler",
     "make_email_invite_handler",
+    "make_email_demo_confirm_signup_handler",
+    "make_email_demo_set_password_handler",
     "make_security_handler",
     "register_security_audit_handlers",
 ]

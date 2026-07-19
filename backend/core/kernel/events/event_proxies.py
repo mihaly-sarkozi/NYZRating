@@ -113,6 +113,47 @@ class EmailServiceProxy:
         )
         return True
 
+    def send_demo_confirm_signup(
+        self,
+        to_email: str,
+        confirm_signup_link: str,
+        *,
+        tenant_slug: str,
+        lang: str | None = None,
+    ) -> bool:
+        self._publisher.publish(
+            "email_demo_confirm_signup",
+            {
+                "to_email": to_email,
+                "confirm_signup_link": confirm_signup_link,
+                "tenant_slug": tenant_slug,
+                "lang": lang,
+            },
+        )
+        return True
+
+    def send_demo_set_password_invite(
+        self,
+        to_email: str,
+        set_password_link: str,
+        *,
+        demo_expires_at,
+        lang: str | None = None,
+    ) -> bool:
+        expires = demo_expires_at
+        if hasattr(expires, "isoformat"):
+            expires = expires.isoformat()
+        self._publisher.publish(
+            "email_demo_set_password",
+            {
+                "to_email": to_email,
+                "set_password_link": set_password_link,
+                "demo_expires_at": expires,
+                "lang": lang,
+            },
+        )
+        return True
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self._email_service, name)
 
