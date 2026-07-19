@@ -1,6 +1,6 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { installSignup, type InstallSignupResponse } from "../api/installApi";
+import { fetchCaptchaConfig, installSignup, type InstallSignupResponse } from "../api/installApi";
 import TurnstileWidget from "../components/TurnstileWidget";
 import { getTurnstileSiteKey, resetTurnstile } from "../components/turnstileHelpers";
 import { useTranslation } from "../../../i18n";
@@ -37,14 +37,44 @@ export default function InstallPage() {
   const [submitting, setSubmitting] = useState(false);
   const [existingInstall, setExistingInstall] = useState<{ email: string } | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-  const turnstileSiteKey = getTurnstileSiteKey();
-  const turnstileRequired = Boolean(turnstileSiteKey);
+  const [captchaSiteKey, setCaptchaSiteKey] = useState(() => getTurnstileSiteKey());
+  const [captchaRequired, setCaptchaRequired] = useState(() => Boolean(getTurnstileSiteKey()));
+  const [captchaConfigError, setCaptchaConfigError] = useState("");
+  const turnstileRequired = captchaRequired;
   const onCaptchaTokenChange = useCallback((token: string | null) => {
     setCaptchaToken(token);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchCaptchaConfig()
+      .then((cfg) => {
+        if (cancelled) return;
+        const key = (cfg.site_key || getTurnstileSiteKey()).trim();
+        setCaptchaSiteKey(key);
+        setCaptchaRequired(Boolean(cfg.required) || Boolean(key));
+        if (cfg.required && !key) {
+          setCaptchaConfigError("A captcha nincs megfelelően beállítva (hiányzó site key).");
+        } else {
+          setCaptchaConfigError("");
+        }
+      })
+      .catch((error) => {
+        console.error("Captcha config load failed:", error);
+        if (!cancelled) {
+          // Vite key fallback already applied; keep form usable if captcha not required.
+          setCaptchaConfigError("");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const canSubmit =
-    Boolean(email.trim() && companyName.trim()) && (!turnstileRequired || Boolean(captchaToken));
+    Boolean(email.trim() && companyName.trim()) &&
+    !captchaConfigError &&
+    (!turnstileRequired || Boolean(captchaToken));
 
   const submitInstall = async (resendExistingAccess: boolean): Promise<InstallSignupResponse> => {
     const company = companyName.trim();
@@ -180,11 +210,17 @@ export default function InstallPage() {
             />
           </div>
 
-          {turnstileRequired ? (
-            <TurnstileWidget onTokenChange={onCaptchaTokenChange} className="min-h-[65px]" />
+          {turnstileRequired && captchaSiteKey ? (
+            <TurnstileWidget
+              siteKey={captchaSiteKey}
+              onTokenChange={onCaptchaTokenChange}
+              className="min-h-[65px]"
+            />
           ) : null}
 
-          {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+          {(captchaConfigError || submitError) && (
+            <p className="text-sm text-red-600">{captchaConfigError || submitError}</p>
+          )}
           <div className="pt-2">
             <button
               type="submit"

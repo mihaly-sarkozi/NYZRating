@@ -50,13 +50,14 @@ function loadTurnstileScript(): Promise<void> {
 
 type TurnstileWidgetProps = {
   onTokenChange: (token: string | null) => void;
+  siteKey?: string;
   className?: string;
 };
 
-export default function TurnstileWidget({ onTokenChange, className }: TurnstileWidgetProps) {
+export default function TurnstileWidget({ onTokenChange, siteKey: siteKeyProp, className }: TurnstileWidgetProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
-  const siteKey = getTurnstileSiteKey();
+  const siteKey = (siteKeyProp || getTurnstileSiteKey()).trim();
 
   useEffect(() => {
     if (!siteKey || !containerRef.current) return;

@@ -3,6 +3,7 @@
 # Sárközi Mihály - 2026.05.21
 
 import logging
+import os
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request as UrlRequest, urlopen
@@ -99,6 +100,23 @@ def _ensure_demo_signup_redis_or_503() -> None:
         status_code=503,
         detail="A demo regisztráció átmenetileg nem elérhető. Kérlek próbáld újra később.",
     )
+
+
+# Ez a függvény a signup captcha nyilvános configját adja (site key nem titok).
+@router.get("/installer/captcha-config")
+@limiter.limit("60/minute")
+def captcha_config(request: Request):
+    require_captcha = bool(getattr(settings, "demo_signup_require_captcha", False))
+    provider = str(getattr(settings, "demo_signup_captcha_provider", "none") or "none").strip().lower()
+    site_key = (
+        str(getattr(settings, "demo_signup_captcha_site_key", "") or "").strip()
+        or str(os.getenv("VITE_TURNSTILE_SITE_KEY", "") or "").strip()
+    )
+    return {
+        "required": require_captcha,
+        "provider": provider,
+        "site_key": site_key if require_captcha and provider in {"turnstile", "recaptcha"} else "",
+    }
 
 
 # Ez a függvény ellenőrzi a(z) slug logikáját.

@@ -86,6 +86,17 @@ export interface ConfirmSignupResponse {
   message: string;
 }
 
+export interface CaptchaConfigResponse {
+  required: boolean;
+  provider: string;
+  site_key: string;
+}
+
+export async function fetchCaptchaConfig(): Promise<CaptchaConfigResponse> {
+  const { data } = await api.get<CaptchaConfigResponse>(`${BASE}/installer/captcha-config`);
+  return data;
+}
+
 export async function confirmInstallSignup(token: string): Promise<ConfirmSignupResponse> {
   const { data } = await api.post<ConfirmSignupResponse>(`${BASE}/installer/confirm-signup`, { token });
   return data;

@@ -232,6 +232,8 @@ class BaseConfig(BaseSettings):
     demo_trial_days: int = 7
     demo_signup_captcha_provider: str = "none"  # none | turnstile | recaptcha
     demo_signup_captcha_secret: str = ""
+    # Nyilvános site key (Turnstile/reCAPTCHA) — frontend widgethez; nem titok.
+    demo_signup_captcha_site_key: str = ""
     demo_signup_require_captcha: bool = False
     demo_signup_require_email_verification: bool = True
     # Pending signup email-confirm TTL (óra); lejárat után a session felszabadítható.
