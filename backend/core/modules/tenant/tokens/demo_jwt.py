@@ -39,9 +39,16 @@ class DemoLoginTokenService:
             return configured.rstrip("/")
         scheme = "https" if self._cookie_secure else "http"
         base = f"{scheme}://{self._install_host}"
-        if self._frontend_set_password_port is not None:
-            base = f"{base}:{self._frontend_set_password_port}"
-        return base
+        port = self._frontend_set_password_port
+        if port is None:
+            return base
+        try:
+            port_num = int(port)
+        except (TypeError, ValueError):
+            return base
+        if port_num in (80, 443):
+            return base
+        return f"{base}:{port_num}"
 
     def build_demo_login_link(self, token: str, tenant_slug: str | None = None) -> str:
         if tenant_slug:

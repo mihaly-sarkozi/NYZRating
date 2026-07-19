@@ -9,15 +9,26 @@ from fastapi import Request
 from core.kernel.config.config_loader import settings
 
 
+def _with_optional_frontend_port(scheme: str, host: str) -> str:
+    """Base URL; 80/443 nem kerül a linkbe (éles HTTPS-en felesleges és zavaró)."""
+    base = f"{scheme}://{host}"
+    port = getattr(settings, "frontend_set_password_port", None)
+    if port is None:
+        return base
+    try:
+        port_num = int(port)
+    except (TypeError, ValueError):
+        return base
+    if port_num in (80, 443):
+        return base
+    return f"{base}:{port_num}"
+
+
 def tenant_frontend_base_url_by_slug(slug: str) -> str:
     """Tenant frontend base URL request nélkül (háttérfolyamatok, emailek)."""
     normalized = str(slug or "").strip().lower()
     scheme = "https" if getattr(settings, "cookie_secure", False) else "http"
-    base = f"{scheme}://{normalized}.{settings.tenant_base_domain}"
-    port = getattr(settings, "frontend_set_password_port", None)
-    if port is not None:
-        base = f"{base}:{port}"
-    return base
+    return _with_optional_frontend_port(scheme, f"{normalized}.{settings.tenant_base_domain}")
 
 
 # Tenant frontend base URL kiszámítása a request és a tenant alapján
@@ -25,11 +36,7 @@ def tenant_frontend_base_url_for_slug(request: Request, slug: str) -> str:
     """Frontend base URL számítása adott tenant slughoz."""
     scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
     host = f"{slug}.{settings.tenant_base_domain}"
-    port = getattr(settings, "frontend_set_password_port", None)
-    base = f"{scheme}://{host}"
-    if port is not None:
-        base = f"{base}:{port}"
-    return base
+    return _with_optional_frontend_port(scheme, host)
 
 
 def tenant_frontend_base_url_from_request(request: Request) -> str:
@@ -44,18 +51,11 @@ def tenant_frontend_base_url_from_request(request: Request) -> str:
             host = getattr(domain_info, "request_host", None) or getattr(domain_info, "resolved_host", None)
         host = (host or request.url.hostname or "").strip().lower()
         if host:
-            port = getattr(settings, "frontend_set_password_port", None)
-            base = f"{scheme}://{host}"
-            if port is not None:
-                base = f"{base}:{port}"
-            return base
+            return _with_optional_frontend_port(scheme, host)
         return tenant_frontend_base_url_for_slug(request, tenant_slug)
 
     if getattr(settings, "frontend_base_url", ""):
         return str(settings.frontend_base_url).rstrip("/")
 
-    hostname = request.url.hostname
-    port = getattr(settings, "frontend_set_password_port", None)
-    if port is not None:
-        return f"{scheme}://{hostname}:{port}"
-    return f"{scheme}://{hostname}"
+    hostname = request.url.hostname or ""
+    return _with_optional_frontend_port(scheme, hostname)

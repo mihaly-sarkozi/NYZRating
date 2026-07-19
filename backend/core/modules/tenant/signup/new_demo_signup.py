@@ -50,12 +50,9 @@ class DemoNewSignupUseCase:
         self._audit = audit_service
 
     def _tenant_frontend_base_url(self, tenant_slug: str) -> str:
-        scheme = "https" if getattr(settings, "cookie_secure", False) else "http"
-        base = f"{scheme}://{tenant_slug}.{self._tenant_base_domain}"
-        port = getattr(settings, "frontend_set_password_port", None)
-        if port is not None:
-            base = f"{base}:{port}"
-        return base
+        from core.modules.tenant.helpers.tenant_frontend_url_helper import tenant_frontend_base_url_by_slug
+
+        return tenant_frontend_base_url_by_slug(tenant_slug)
 
     def _send_demo_set_password_email(
         self,

@@ -16,7 +16,6 @@ from core.modules.users.service._user_service_helpers import build_set_password_
 from core.modules.tenant.context.tenant_context import current_tenant_schema
 from core.modules.tenant.slug.policy import demo_host_hint, demo_trial_expires_at
 from core.modules.tenant.signup.orchestrator_result import DemoSignupResult
-from core.kernel.config.config_loader import settings
 
 
 _DEMO_TRIAL_DAYS = 30
@@ -43,12 +42,9 @@ class DemoSignupResendUseCase:
         self._clock = clock
 
     def _tenant_frontend_base_url(self, tenant_slug: str) -> str:
-        scheme = "https" if getattr(settings, "cookie_secure", False) else "http"
-        base = f"{scheme}://{tenant_slug}.{self._tenant_base_domain}"
-        port = getattr(settings, "frontend_set_password_port", None)
-        if port is not None:
-            base = f"{base}:{port}"
-        return base
+        from core.modules.tenant.helpers.tenant_frontend_url_helper import tenant_frontend_base_url_by_slug
+
+        return tenant_frontend_base_url_by_slug(tenant_slug)
 
     def _send_demo_set_password_email(
         self,

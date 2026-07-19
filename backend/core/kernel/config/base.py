@@ -49,7 +49,8 @@ class BaseConfig(BaseSettings):
     # Jelszó beállító link (emailben): path + opcionális frontend port (ha a kérés a backend portjára jön, pl. proxy).
     # Pl. path=/set-password, port=5173 → link: http://demo.local:5173/set-password?token=...
     frontend_set_password_path: str = "/set-password"
-    frontend_set_password_port: int | None = 5173  # A link ezt a portot használja (frontend). Élesben írd felül .env-ben (pl. 443) vagy töröld.
+    # Dev: 5173 (compose állítja). Élesben hagyd üresen / None — 80/443 amúgy sem kerül a linkbe.
+    frontend_set_password_port: int | None = None
     frontend_base_url: str = ""  # Opcionális fix frontend base URL (pl. https://app.example.com)
 
     # Multi-tenant: base domain a Host-ból (acme.local → base=local → slug=acme)
