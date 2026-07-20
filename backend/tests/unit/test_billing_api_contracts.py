@@ -30,16 +30,16 @@ def test_billing_subscription_update_request_normalizes_and_validates() -> None:
 
 
 def test_billing_addon_purchase_request_limits_quantity() -> None:
-    request = BillingAddonPurchaseRequest(addon_code="Question_Pack_100", quantity=2)
+    request = BillingAddonPurchaseRequest(addon_code="Question_Pack_50", quantity=2)
 
-    assert request.addon_code == "question_pack_100"
+    assert request.addon_code == "question_pack_50"
     assert request.quantity == 2
 
     with pytest.raises(ValidationError):
-        BillingAddonPurchaseRequest(addon_code="question_pack_100", quantity=0)
+        BillingAddonPurchaseRequest(addon_code="question_pack_50", quantity=0)
 
     with pytest.raises(ValidationError):
-        BillingAddonPurchaseRequest(addon_code="question_pack_100", quantity=101)
+        BillingAddonPurchaseRequest(addon_code="question_pack_50", quantity=101)
 
 
 def test_billing_cancellation_request_accepts_known_reasons() -> None:

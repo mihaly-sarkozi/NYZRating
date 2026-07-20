@@ -41,9 +41,9 @@ def default_catalog_rows() -> list[dict[str, Any]]:
             "code": "starter",
             "name": "Starter",
             "currency": DEFAULT_CURRENCY,
-            "price_cents": 799_900,
+            "price_cents": 890_000,
             "included": {
-                "questions_monthly": 50,
+                "questions_monthly": 40,
                 "trial_days": 0,
             },
             "metadata_json": {
@@ -57,7 +57,7 @@ def default_catalog_rows() -> list[dict[str, Any]]:
             "code": "pro",
             "name": "Pro",
             "currency": DEFAULT_CURRENCY,
-            "price_cents": 1_399_900,
+            "price_cents": 1_890_000,
             "included": {
                 "questions_monthly": 150,
                 "trial_days": 0,
@@ -73,7 +73,7 @@ def default_catalog_rows() -> list[dict[str, Any]]:
             "code": "growth",
             "name": "Pro (legacy)",
             "currency": DEFAULT_CURRENCY,
-            "price_cents": 1_399_900,
+            "price_cents": 1_890_000,
             "included": {
                 "questions_monthly": 150,
                 "trial_days": 0,
@@ -89,9 +89,9 @@ def default_catalog_rows() -> list[dict[str, Any]]:
             "code": "business",
             "name": "Giga",
             "currency": DEFAULT_CURRENCY,
-            "price_cents": 2_399_900,
+            "price_cents": 3_490_000,
             "included": {
-                "questions_monthly": 350,
+                "questions_monthly": 400,
                 "trial_days": 0,
             },
             "metadata_json": {
@@ -102,13 +102,23 @@ def default_catalog_rows() -> list[dict[str, Any]]:
         },
         {
             "entry_type": "addon",
+            "code": "question_pack_50",
+            "name": "50 extra SMS",
+            "currency": DEFAULT_CURRENCY,
+            "price_cents": 590_000,
+            "included": {"questions": 50},
+            "metadata_json": {"carryover": True, "kind": "questions"},
+            "is_active": True,
+        },
+        {
+            "entry_type": "addon",
             "code": "question_pack_100",
-            "name": "100 extra SMS",
+            "name": "100 extra SMS (legacy)",
             "currency": DEFAULT_CURRENCY,
             "price_cents": 800_000,
             "included": {"questions": 100},
             "metadata_json": {"carryover": True, "kind": "questions"},
-            "is_active": True,
+            "is_active": False,
         },
         {
             "entry_type": "addon",

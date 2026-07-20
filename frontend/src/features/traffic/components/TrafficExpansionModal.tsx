@@ -69,16 +69,16 @@ export default function TrafficExpansionModal({ catalog, onClose, onCheckout }: 
   const { t, locale } = useTranslation();
   const [storageQuantity, setStorageQuantity] = useState(0);
   const [trainingQuantity, setTrainingQuantity] = useState(0);
-  const [question100Quantity, setQuestion100Quantity] = useState(0);
+  const [question50Quantity, setQuestion50Quantity] = useState(0);
   const [question500Quantity, setQuestion500Quantity] = useState(0);
 
   const storageAddon = addonEntry(catalog, "extra_storage_gb");
   const trainingAddon = addonEntry(catalog, "training_extra_500k");
-  const question100Addon = addonEntry(catalog, "question_pack_100");
+  const question50Addon = addonEntry(catalog, "question_pack_50");
   const question500Addon = addonEntry(catalog, "question_pack_500");
   const storageUnitGb = includedNumber(storageAddon, "storage_gb", 1);
   const trainingUnitChars = includedNumber(trainingAddon, "training_chars", 500000);
-  const question100Count = includedNumber(question100Addon, "questions", 100);
+  const question50Count = includedNumber(question50Addon, "questions", 50);
   const question500Count = includedNumber(question500Addon, "questions", 500);
 
   const options: ExpansionOption[] = [
@@ -102,13 +102,13 @@ export default function TrafficExpansionModal({ catalog, onClose, onCheckout }: 
       totalCents: numberValue(storageAddon?.price_cents) * storageQuantity,
     },
     {
-      addonCode: "question_pack_100",
-      title: t("packages.expandQuestionsTitle").replace("{{count}}", String(question100Count)),
-      unitLabel: `${formatNumber(question100Count, locale)} ${t("traffic.questionsByUserCount").toLowerCase()}`,
-      unitPriceCents: numberValue(question100Addon?.price_cents),
-      quantity: question100Quantity,
-      setQuantity: setQuestion100Quantity,
-      totalCents: numberValue(question100Addon?.price_cents) * question100Quantity,
+      addonCode: "question_pack_50",
+      title: t("packages.expandQuestionsTitle").replace("{{count}}", String(question50Count)),
+      unitLabel: `${formatNumber(question50Count, locale)} ${t("traffic.questionsByUserCount").toLowerCase()}`,
+      unitPriceCents: numberValue(question50Addon?.price_cents),
+      quantity: question50Quantity,
+      setQuantity: setQuestion50Quantity,
+      totalCents: numberValue(question50Addon?.price_cents) * question50Quantity,
     },
     {
       addonCode: "question_pack_500",

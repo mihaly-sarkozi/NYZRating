@@ -29,7 +29,7 @@ function formatDate(value: string | undefined, locale: string): string {
   return date.toLocaleDateString(localeTag(locale), { dateStyle: "long" });
 }
 
-const SMS_PACK_CHECKOUT_ITEMS = "question_pack_100:1";
+const SMS_PACK_CHECKOUT_ITEMS = "question_pack_50:1";
 
 export default function TrafficPage() {
   const { t, locale } = useTranslation();

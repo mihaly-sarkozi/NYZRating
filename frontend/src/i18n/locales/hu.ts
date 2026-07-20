@@ -1090,7 +1090,7 @@ export const hu = {
       bannerExpandCta: "SMS keret bővítése",
       bannerExpandModalTitle: "SMS keret bővítése",
       smsExpandBannerNotice:
-        "100 extra SMS-t vásárolhatsz 8.000 Ft-ért. A megvásárolt keret időkorlát nélkül felhasználható.",
+        "50 extra SMS-t vásárolhatsz 5.900 Ft-ért. A megvásárolt keret időkorlát nélkül felhasználható.",
       taxSuffix: "+ ÁFA",
       expandTrainingTitle: "Betanítási csomag ({{chars}} karakter)",
       expandStorageTitle: "Tárhely csomag ({{gb}} GB)",
@@ -1101,7 +1101,7 @@ export const hu = {
       expandBuyCta: "Megveszem",
       addonCheckoutPageTitle: "SMS keret bővítése — fizetés",
       addonCheckoutIntro:
-        "100 extra SMS keretet vásárolhatsz 8.000 Ft-ért. Add meg a bankkártya és számlázási adataidat, majd véglegesítsd a rendelést. A tranzakció jelenleg szimulált.",
+        "50 extra SMS keretet vásárolhatsz 5.900 Ft-ért. Add meg a bankkártya és számlázási adataidat, majd véglegesítsd a rendelést. A tranzakció jelenleg szimulált.",
       addonCheckoutSummaryHeading: "Rendelés összesítése",
       addonCheckoutItem: "Tétel:",
       addonCheckoutQuantity: "Mennyiség:",
@@ -1619,7 +1619,7 @@ export const hu = {
       pricingLead: "Kezdje a tesztidőszakkal, majd válassza a forgalmához illő keretet.",
       pricingPopular: "Népszerű",
       pricingNote:
-        "Az árak Ft-ban, ÁFA nélkül értendők. Extra 100 SMS külön megvásárolható. Nem garantálunk pozitív vagy ötcsillagos értékeléseket — a rendszer őszinte visszajelzés kérésére épül.",
+        "Az árak Ft-ban, ÁFA nélkül értendők. Extra 50 SMS külön megvásárolható. Nem garantálunk pozitív vagy ötcsillagos értékeléseket — a rendszer őszinte visszajelzés kérésére épül.",
       plan: {
         trial: {
           name: "Teszt",
@@ -1632,16 +1632,16 @@ export const hu = {
         },
         starter: {
           name: "Starter",
-          price: "7.999 Ft",
+          price: "8.900 Ft",
           period: "/ hó",
-          sms: "50 SMS / hónap",
+          sms: "40 SMS / hónap",
           f1: "Mérhető értékelési linkek",
           f2: "Személyre szabott SMS-sablon",
           f3: "Alap forgalomkövetés",
         },
         pro: {
           name: "Pro",
-          price: "13.999 Ft",
+          price: "18.900 Ft",
           period: "/ hó",
           sms: "150 SMS / hónap",
           f1: "Nagyobb havi keret",
@@ -1650,9 +1650,9 @@ export const hu = {
         },
         business: {
           name: "Business",
-          price: "23.999 Ft",
+          price: "34.900 Ft",
           period: "/ hó",
-          sms: "350 SMS / hónap",
+          sms: "400 SMS / hónap",
           f1: "Magasabb forgalomhoz",
           f2: "Átlátható keretgazdálkodás",
           f3: "Prioritás a nagyobb volumenre",

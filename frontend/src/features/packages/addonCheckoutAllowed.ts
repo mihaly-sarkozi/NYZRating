@@ -1,5 +1,5 @@
 /** SMS keretbővítés, amely a csomagok oldalról fizetési flow-val vásárolható. */
-export const ADDON_CHECKOUT_CODES = ["question_pack_100"] as const;
+export const ADDON_CHECKOUT_CODES = ["question_pack_50"] as const;
 
 export type AddonCheckoutCode = (typeof ADDON_CHECKOUT_CODES)[number];
 

@@ -19,10 +19,10 @@ import { formatEuroLocaleFromCents, includedNumber } from "../components/package
 
 function addonCheckoutName(entry: BillingCatalogEntry, t: (key: string) => string): string {
   switch (entry.code) {
-    case "question_pack_100":
+    case "question_pack_50":
       return t("packages.expandQuestionsTitle").replace(
         "{{count}}",
-        String(includedNumber(entry, "questions", 100))
+        String(includedNumber(entry, "questions", 50))
       );
     default:
       return entry.name;

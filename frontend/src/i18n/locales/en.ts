@@ -1079,7 +1079,7 @@ export const en = {
       bannerExpandCta: "Expand SMS allowance",
       bannerExpandModalTitle: "Expand SMS allowance",
       smsExpandBannerNotice:
-        "You can buy 100 extra SMS for 8000 Ft. Purchased allowance never expires.",
+        "You can buy 50 extra SMS for 5900 Ft. Purchased allowance never expires.",
       taxSuffix: "+ VAT",
       expandTrainingTitle: "Training package ({{chars}} characters)",
       expandStorageTitle: "Storage package ({{gb}} GB)",
@@ -1090,7 +1090,7 @@ export const en = {
       expandBuyCta: "Buy",
       addonCheckoutPageTitle: "Expand SMS allowance — payment",
       addonCheckoutIntro:
-        "You can buy 100 extra SMS for 8000 Ft. Enter your card and billing details, then complete the order. Payment is simulated for now.",
+        "You can buy 50 extra SMS for 5900 Ft. Enter your card and billing details, then complete the order. Payment is simulated for now.",
       addonCheckoutSummaryHeading: "Order summary",
       addonCheckoutItem: "Item:",
       addonCheckoutQuantity: "Quantity:",
@@ -1589,7 +1589,7 @@ export const en = {
       pricingLead: "Start with the trial, then pick the allowance that fits your traffic.",
       pricingPopular: "Popular",
       pricingNote:
-        "Prices are in HUF, excluding VAT. Extra 100 SMS packs are available. We do not guarantee positive or five-star reviews — the product asks for honest feedback.",
+        "Prices are in HUF, excluding VAT. Extra 50 SMS packs are available. We do not guarantee positive or five-star reviews — the product asks for honest feedback.",
       plan: {
         trial: {
           name: "Trial",
@@ -1602,16 +1602,16 @@ export const en = {
         },
         starter: {
           name: "Starter",
-          price: "7,999 Ft",
+          price: "8,900 Ft",
           period: "/ mo",
-          sms: "50 SMS / month",
+          sms: "40 SMS / month",
           f1: "Measurable review links",
           f2: "Personalized SMS template",
           f3: "Core traffic tracking",
         },
         pro: {
           name: "Pro",
-          price: "13,999 Ft",
+          price: "18,900 Ft",
           period: "/ mo",
           sms: "150 SMS / month",
           f1: "Larger monthly allowance",
@@ -1620,9 +1620,9 @@ export const en = {
         },
         business: {
           name: "Business",
-          price: "23,999 Ft",
+          price: "34,900 Ft",
           period: "/ mo",
-          sms: "350 SMS / month",
+          sms: "400 SMS / month",
           f1: "For higher volume",
           f2: "Clear allowance management",
           f3: "Built for larger traffic",

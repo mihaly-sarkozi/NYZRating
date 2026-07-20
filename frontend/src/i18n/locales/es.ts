@@ -1080,7 +1080,7 @@ export const es = {
       bannerExpandCta: "Ampliar cuota SMS",
       bannerExpandModalTitle: "Ampliar cuota SMS",
       smsExpandBannerNotice:
-        "Puedes comprar 100 SMS extra por 8000 Ft. La cuota comprada no caduca.",
+        "Puedes comprar 50 SMS extra por 5900 Ft. La cuota comprada no caduca.",
       taxSuffix: "+ IVA",
       expandTrainingTitle: "Paquete de entrenamiento ({{chars}} caracteres)",
       expandStorageTitle: "Paquete de almacenamiento ({{gb}} GB)",
@@ -1091,7 +1091,7 @@ export const es = {
       expandBuyCta: "Comprar",
       addonCheckoutPageTitle: "Ampliar cuota SMS — pago",
       addonCheckoutIntro:
-        "Puedes comprar 100 SMS extra por 8000 Ft. Introduce los datos de la tarjeta y facturación y completa el pedido. El pago está simulado por ahora.",
+        "Puedes comprar 50 SMS extra por 5900 Ft. Introduce los datos de la tarjeta y facturación y completa el pedido. El pago está simulado por ahora.",
       addonCheckoutSummaryHeading: "Resumen del pedido",
       addonCheckoutItem: "Artículo:",
       addonCheckoutQuantity: "Cantidad:",
@@ -1590,7 +1590,7 @@ export const es = {
       pricingLead: "Empiece con la prueba y elija la cuota que encaje con su tráfico.",
       pricingPopular: "Popular",
       pricingNote:
-        "Precios en HUF, sin IVA. Hay paquetes extra de 100 SMS. No garantizamos reseñas positivas ni de cinco estrellas: el producto pide opiniones honestas.",
+        "Precios en HUF, sin IVA. Hay paquetes extra de 50 SMS. No garantizamos reseñas positivas ni de cinco estrellas: el producto pide opiniones honestas.",
       plan: {
         trial: {
           name: "Prueba",
@@ -1603,16 +1603,16 @@ export const es = {
         },
         starter: {
           name: "Starter",
-          price: "7.999 Ft",
+          price: "8.900 Ft",
           period: "/ mes",
-          sms: "50 SMS / mes",
+          sms: "40 SMS / mes",
           f1: "Enlaces de reseña medibles",
           f2: "Plantilla SMS personalizada",
           f3: "Seguimiento básico",
         },
         pro: {
           name: "Pro",
-          price: "13.999 Ft",
+          price: "18.900 Ft",
           period: "/ mes",
           sms: "150 SMS / mes",
           f1: "Mayor cuota mensual",
@@ -1621,9 +1621,9 @@ export const es = {
         },
         business: {
           name: "Business",
-          price: "23.999 Ft",
+          price: "34.900 Ft",
           period: "/ mes",
-          sms: "350 SMS / mes",
+          sms: "400 SMS / mes",
           f1: "Para mayor volumen",
           f2: "Gestión clara de cuota",
           f3: "Pensado para más tráfico",

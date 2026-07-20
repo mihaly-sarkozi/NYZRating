@@ -74,7 +74,7 @@ export default function PackagesPage() {
       ? rawBillingPeriod
       : "monthly";
 
-  const smsPackCheckoutItems = "question_pack_100:1";
+  const smsPackCheckoutItems = "question_pack_50:1";
   useEffect(() => {
     if (!planChangePending && !planChangeSuccess && !resourceBlockMessage) return;
     const onKey = (e: KeyboardEvent) => {

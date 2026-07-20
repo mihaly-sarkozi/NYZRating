@@ -2165,7 +2165,9 @@ class BillingService:
         extra_storage_gb = int(subscription.extra_storage_gb or 0)
         carryover_addon_questions = int(subscription.carryover_addon_questions or 0)
         carryover_training_chars = int(subscription.carryover_training_chars or 0)
-        if normalized_code == "question_pack_100":
+        if normalized_code == "question_pack_50":
+            carryover_addon_questions += 50 * qty
+        elif normalized_code == "question_pack_100":
             carryover_addon_questions += 100 * qty
         elif normalized_code == "question_pack_500":
             carryover_addon_questions += 500 * qty
