@@ -1618,6 +1618,8 @@ export const hu = {
       pricingTitle: "Csomagok és havi SMS-keretek",
       pricingLead: "Kezdje a tesztidőszakkal, majd válassza a forgalmához illő keretet.",
       pricingPopular: "Népszerű",
+      trialBlockEyebrow: "Kezdés kockázat nélkül",
+      trialBlockHint: "Bankkártya nélkül indítható. Utána választhat fizetős csomagot.",
       pricingNote:
         "Az árak Ft-ban, ÁFA nélkül értendők. Extra 50 SMS külön megvásárolható. Nem garantálunk pozitív vagy ötcsillagos értékeléseket — a rendszer őszinte visszajelzés kérésére épül.",
       plan: {

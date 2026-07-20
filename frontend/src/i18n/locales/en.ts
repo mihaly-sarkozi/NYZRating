@@ -1588,6 +1588,8 @@ export const en = {
       pricingTitle: "Plans and monthly SMS allowances",
       pricingLead: "Start with the trial, then pick the allowance that fits your traffic.",
       pricingPopular: "Popular",
+      trialBlockEyebrow: "Start with no risk",
+      trialBlockHint: "No card required. Choose a paid plan when you are ready.",
       pricingNote:
         "Prices are in HUF, excluding VAT. Extra 50 SMS packs are available. We do not guarantee positive or five-star reviews — the product asks for honest feedback.",
       plan: {

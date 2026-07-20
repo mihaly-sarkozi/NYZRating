@@ -1589,6 +1589,8 @@ export const es = {
       pricingTitle: "Planes y cuotas mensuales de SMS",
       pricingLead: "Empiece con la prueba y elija la cuota que encaje con su tráfico.",
       pricingPopular: "Popular",
+      trialBlockEyebrow: "Empiece sin riesgo",
+      trialBlockHint: "Sin tarjeta. Elija un plan de pago cuando esté listo.",
       pricingNote:
         "Precios en HUF, sin IVA. Hay paquetes extra de 50 SMS. No garantizamos reseñas positivas ni de cinco estrellas: el producto pide opiniones honestas.",
       plan: {

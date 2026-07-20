@@ -10,7 +10,7 @@ const LOCALES: Locale[] = ["hu", "en", "es"];
 const HOW_STEPS = ["1", "2", "3", "4"] as const;
 const BENEFITS = ["1", "2", "3", "4", "5", "6"] as const;
 const AUDIENCES = ["salon", "beauty", "restaurant", "clinic", "auto", "local"] as const;
-const PLANS = ["trial", "starter", "pro", "business"] as const;
+const PLANS = ["starter", "pro", "business"] as const;
 const FAQS = ["1", "2", "3", "4", "5", "6"] as const;
 
 function TrialCta({
@@ -292,6 +292,32 @@ export default function LandingPage() {
               lead={t("landing.pricingLead")}
               titleId="landing-pricing-title"
             />
+
+            <aside className="landing-trial-block" aria-labelledby="landing-trial-title">
+              <div className="landing-trial-copy">
+                <p className="landing-trial-eyebrow">{t("landing.trialBlockEyebrow")}</p>
+                <h3 id="landing-trial-title" className="landing-trial-name">
+                  {t("landing.plan.trial.name")}
+                </h3>
+                <p className="landing-price-amount landing-trial-amount">
+                  <span>{t("landing.plan.trial.price")}</span>
+                  <small>{t("landing.plan.trial.period")}</small>
+                </p>
+                <p className="landing-price-sms">{t("landing.plan.trial.sms")}</p>
+                <ul className="landing-price-features landing-trial-features">
+                  <li>{t("landing.plan.trial.f1")}</li>
+                  <li>{t("landing.plan.trial.f2")}</li>
+                  <li>{t("landing.plan.trial.f3")}</li>
+                </ul>
+              </div>
+              <div className="landing-trial-action">
+                <TrialCta className="landing-btn landing-btn-primary landing-btn-block" source="pricing_trial">
+                  {t("landing.ctaTrial")}
+                </TrialCta>
+                <p className="landing-trial-hint">{t("landing.trialBlockHint")}</p>
+              </div>
+            </aside>
+
             <div className="landing-pricing-grid">
               {PLANS.map((plan) => {
                 const featured = plan === "pro";

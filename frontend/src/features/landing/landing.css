@@ -503,6 +503,56 @@
   gap: 0.7rem;
 }
 
+.landing-trial-block {
+  display: grid;
+  gap: 1.25rem;
+  margin: 0 0 1.35rem;
+  padding: 1.35rem 1.4rem;
+  border-radius: 1.35rem;
+  border: 1px solid color-mix(in srgb, var(--landing-cta) 28%, var(--landing-line));
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.1), transparent 55%),
+    color-mix(in srgb, var(--landing-soft) 70%, white);
+}
+
+.landing-trial-eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--landing-cta);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.landing-trial-name {
+  margin: 0;
+  font-family: var(--landing-display);
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.03em;
+}
+
+.landing-trial-amount {
+  margin-top: 0.55rem;
+}
+
+.landing-trial-features {
+  margin-top: 0.75rem;
+  flex: 0;
+}
+
+.landing-trial-action {
+  display: grid;
+  gap: 0.55rem;
+  align-content: end;
+}
+
+.landing-trial-hint {
+  margin: 0;
+  color: var(--landing-muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 .landing-price-card.is-featured {
   border-color: color-mix(in srgb, var(--landing-cta) 45%, var(--landing-line));
   box-shadow: 0 18px 40px var(--landing-glow);
@@ -756,7 +806,14 @@
   }
 
   .landing-pricing-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .landing-trial-block {
+    grid-template-columns: 1.4fr 0.8fr;
+    align-items: end;
+    gap: 1.75rem;
+    padding: 1.6rem 1.75rem;
   }
 
   .landing-price-card.is-featured {
