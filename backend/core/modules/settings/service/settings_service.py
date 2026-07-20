@@ -26,6 +26,7 @@ class SettingsService(TwoFactorSettingsReader):
     BILLING_CITY_KEY = "billing_city"
     BILLING_REGION_KEY = "billing_region"
     BILLING_COUNTRY_KEY = "billing_country"
+    GOOGLE_REVIEW_URL_KEY = "google_review_url"
 
     DEFAULT_TIMEZONE = "UTC"
     DEFAULT_DATE_FORMAT = "YYYY-MM-DD"
@@ -213,6 +214,7 @@ class SettingsService(TwoFactorSettingsReader):
             "billing_city": self._get_text_setting(self.BILLING_CITY_KEY),
             "billing_region": self._get_text_setting(self.BILLING_REGION_KEY),
             "billing_country": self._get_text_setting(self.BILLING_COUNTRY_KEY),
+            "google_review_url": self._get_text_setting(self.GOOGLE_REVIEW_URL_KEY),
         }
 
     def update_billing_profile(
@@ -227,6 +229,7 @@ class SettingsService(TwoFactorSettingsReader):
         billing_city: str | None = None,
         billing_region: str | None = None,
         billing_country: str | None = None,
+        google_review_url: str | None = None,
         updated_by: int | None = None,
     ) -> dict[str, str]:
         before = self.get_settings_snapshot()
@@ -239,6 +242,7 @@ class SettingsService(TwoFactorSettingsReader):
         self._set_text_setting(self.BILLING_CITY_KEY, billing_city, updated_by=updated_by)
         self._set_text_setting(self.BILLING_REGION_KEY, billing_region, updated_by=updated_by)
         self._set_text_setting(self.BILLING_COUNTRY_KEY, billing_country, updated_by=updated_by)
+        self._set_text_setting(self.GOOGLE_REVIEW_URL_KEY, google_review_url, updated_by=updated_by)
         after = self.get_settings_snapshot()
         self._audit_settings_changed(before=before, after=after, updated_by=updated_by)
         return self.get_billing_profile()
@@ -266,6 +270,7 @@ class SettingsService(TwoFactorSettingsReader):
         billing_city: str | None = None,
         billing_region: str | None = None,
         billing_country: str | None = None,
+        google_review_url: str | None = None,
         updated_by: int | None = None,
     ) -> dict[str, object]:
         if two_factor_enabled is not None:
@@ -289,6 +294,7 @@ class SettingsService(TwoFactorSettingsReader):
                 billing_city,
                 billing_region,
                 billing_country,
+                google_review_url,
             )
         ):
             self.update_billing_profile(
@@ -301,6 +307,7 @@ class SettingsService(TwoFactorSettingsReader):
                 billing_city=billing_city,
                 billing_region=billing_region,
                 billing_country=billing_country,
+                google_review_url=google_review_url,
                 updated_by=updated_by,
             )
         return self.get_settings_snapshot()

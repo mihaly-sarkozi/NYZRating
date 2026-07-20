@@ -705,6 +705,7 @@ def _apply_public_demo_signup_schema(engine: Engine) -> None:
             "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS preferred_locale VARCHAR(8) NULL",
             "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS plan_code VARCHAR(64) NULL",
             "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS subscription_period VARCHAR(32) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS google_review_url VARCHAR(500) NULL",
         ):
             conn.execute(text(ddl))
         conn.execute(
@@ -751,6 +752,7 @@ def _apply_public_demo_signup_email_verification_schema(engine: Engine) -> None:
             "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS preferred_locale VARCHAR(8) NULL",
             "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS plan_code VARCHAR(64) NULL",
             "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS subscription_period VARCHAR(32) NULL",
+            "ALTER TABLE public.demo_signup_sessions ADD COLUMN IF NOT EXISTS google_review_url VARCHAR(500) NULL",
         ):
             conn.execute(text(ddl))
         conn.execute(

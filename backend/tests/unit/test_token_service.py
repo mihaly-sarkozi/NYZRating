@@ -134,6 +134,25 @@ def test_decode_ignore_exp_accepts_expired_token_with_correct_issuer(token_servi
     assert result["iss"] == "NYZRating"
 
 
+def test_make_refresh_pair_respects_auto_login_ttl():
+    """auto_login=True → hosszabb refresh TTL; False → session TTL."""
+    svc = TokenService(
+        secret="test-secret-key",
+        issuer="NYZRating",
+        access_exp_min=15,
+        refresh_exp_min=60 * 24 * 30,
+        refresh_session_exp_min=60 * 24,
+    )
+    now = datetime.datetime.now(timezone.utc)
+    _, long_claims = svc.make_refresh_pair(1, auto_login=True)
+    _, short_claims = svc.make_refresh_pair(1, auto_login=False)
+    assert long_claims["al"] is True
+    assert short_claims["al"] is False
+    assert long_claims["exp"] - now >= datetime.timedelta(days=29)
+    assert short_claims["exp"] - now <= datetime.timedelta(hours=25)
+    assert short_claims["exp"] < long_claims["exp"]
+
+
 def test_verify_rejects_token_with_nbf_in_future(token_service_with_issuer):
     """nbf a jövőben → verify() InvalidTokenError (vagy InvalidNotBeforeError)."""
     now = datetime.datetime.now(timezone.utc)

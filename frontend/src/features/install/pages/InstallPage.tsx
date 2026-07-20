@@ -4,6 +4,8 @@ import { fetchCaptchaConfig, installSignup, type InstallSignupResponse } from ".
 import TurnstileWidget from "../components/TurnstileWidget";
 import { getTurnstileSiteKey, resetTurnstile } from "../components/turnstileHelpers";
 import { useTranslation } from "../../../i18n";
+import GoogleReviewInfoButton from "../../settings/sections/billing/GoogleReviewInfoButton";
+import { isValidGoogleReviewUrl, normalizeGoogleReviewUrl } from "../../settings/sections/billing/googleReviewUrl";
 
 export const INSTALL_SESSION_STORAGE_KEY = "nyzrating_install_session_id";
 
@@ -28,14 +30,21 @@ function getOrCreateInstallSessionId(): string {
   return generated;
 }
 
+type ExistingBusiness = {
+  loginUrl: string;
+  tenantSlug?: string;
+};
+
 export default function InstallPage() {
   const { locale } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [googleReviewUrl, setGoogleReviewUrl] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [existingInstall, setExistingInstall] = useState<{ email: string } | null>(null);
+  const [existingBusiness, setExistingBusiness] = useState<ExistingBusiness | null>(null);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaSiteKey, setCaptchaSiteKey] = useState(() => getTurnstileSiteKey());
   const [captchaRequired, setCaptchaRequired] = useState(() => Boolean(getTurnstileSiteKey()));
@@ -71,8 +80,9 @@ export default function InstallPage() {
     };
   }, []);
 
+  const normalizedReviewUrl = normalizeGoogleReviewUrl(googleReviewUrl);
   const canSubmit =
-    Boolean(email.trim() && companyName.trim()) &&
+    Boolean(email.trim() && companyName.trim() && isValidGoogleReviewUrl(normalizedReviewUrl)) &&
     !captchaConfigError &&
     (!turnstileRequired || Boolean(captchaToken));
 
@@ -87,6 +97,7 @@ export default function InstallPage() {
       email: email.trim(),
       name: company,
       company_name: company,
+      google_review_url: normalizedReviewUrl,
       locale,
       resend_existing_access: resendExistingAccess,
       kb_name: company,
@@ -111,30 +122,47 @@ export default function InstallPage() {
     if (submitting || !canSubmit) return;
     setSubmitError("");
     setExistingInstall(null);
+    setExistingBusiness(null);
     setSubmitting(true);
     try {
       await submitInstall(false);
     } catch (err: unknown) {
       const response =
         err && typeof err === "object" && "response" in err
-          ? (err as { response?: { status?: number; data?: { detail?: string | { reason?: string; message?: string } } } })
-              .response
+          ? (err as {
+              response?: {
+                status?: number;
+                data?: {
+                  detail?:
+                    | string
+                    | {
+                        reason?: string;
+                        message?: string;
+                        login_url?: string;
+                        tenant_slug?: string;
+                      };
+                };
+              };
+            }).response
           : null;
       const responseData = response?.data ?? null;
       const detail = responseData?.detail;
       const reason = typeof detail === "object" && detail ? detail.reason : undefined;
       const message = typeof detail === "object" && detail ? detail.message : detail;
-      const normalizedMessage = (typeof message === "string" ? message : "").toLowerCase();
-      const isExistingInstallLike =
-        reason === "demo_exists" ||
-        response?.status === 409 ||
-        normalizedMessage.includes("already") ||
-        normalizedMessage.includes("már") ||
-        normalizedMessage.includes("használatban");
+      const loginUrl =
+        typeof detail === "object" && detail && typeof detail.login_url === "string"
+          ? detail.login_url.trim()
+          : "";
+      const tenantSlug =
+        typeof detail === "object" && detail && typeof detail.tenant_slug === "string"
+          ? detail.tenant_slug.trim()
+          : undefined;
       resetTurnstile();
       setCaptchaToken(null);
-      if (isExistingInstallLike) {
-        // Turnstile token egyszer használható → ne auto-resendeljünk; új captcha + modal.
+      if (reason === "business_exists") {
+        setExistingBusiness({ loginUrl, tenantSlug });
+        setSubmitError("");
+      } else if (reason === "demo_exists") {
         setExistingInstall({ email: email.trim() });
         setSubmitError("");
       } else {
@@ -167,6 +195,11 @@ export default function InstallPage() {
     }
   };
 
+  const handleReconnect = () => {
+    if (!existingBusiness?.loginUrl) return;
+    window.location.assign(existingBusiness.loginUrl);
+  };
+
   return (
     <div className="min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)] flex flex-col">
       <header className="border-b border-[var(--color-border)] px-4 py-4 flex justify-between items-center">
@@ -196,6 +229,28 @@ export default function InstallPage() {
               required
               placeholder="Példa Kft."
               autoComplete="organization"
+            />
+          </div>
+          <div>
+            <label className="mb-1 flex items-center gap-2 text-sm font-medium">
+              <span>Google vélemény link</span>
+              <GoogleReviewInfoButton title="Hol találom a Google vélemény linket?">
+                <p>
+                  Lépjen be a cégének Google-fiókjába, nyissa meg a cégprofilt, majd a „Vélemény kérése” ikonnál találja
+                  a másolható linket. Ezt illessze be ide.
+                </p>
+                <p>A formátum így néz ki:</p>
+                <p className="font-mono text-[var(--color-foreground)]">https://g.page/r/...../review</p>
+              </GoogleReviewInfoButton>
+            </label>
+            <input
+              type="url"
+              value={googleReviewUrl}
+              onChange={(e) => setGoogleReviewUrl(e.target.value)}
+              className="w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-3"
+              required
+              placeholder="https://g.page/r/.../review"
+              autoComplete="off"
             />
           </div>
           <div>
@@ -247,6 +302,51 @@ export default function InstallPage() {
           </p>
         </form>
       </main>
+
+      {existingBusiness && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="business-exists-title"
+          onClick={() => {
+            if (!submitting) setExistingBusiness(null);
+          }}
+        >
+          <div
+            className="relative w-full max-w-md rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="business-exists-title" className="text-lg font-semibold text-[var(--color-foreground)] mb-3">
+              Ez az üzlet már regisztrálva volt
+            </h2>
+            <p className="text-sm text-[var(--color-foreground)] mb-2">
+              Szeretnéd visszakapcsolni a szolgáltatást?
+            </p>
+            <p className="text-sm text-[var(--color-muted-foreground)] mb-6">
+              Teszt elérés most nem indítható. Lépj be, válassz csomagot, fizess — ezután kapcsolódik vissza a
+              szolgáltatás.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setExistingBusiness(null)}
+                className="inline-flex items-center justify-center rounded border border-[var(--color-border)] px-4 py-2 text-[var(--color-foreground)] order-2 sm:order-1"
+              >
+                Vissza
+              </button>
+              <button
+                type="button"
+                onClick={handleReconnect}
+                disabled={!existingBusiness.loginUrl}
+                className="inline-flex items-center justify-center rounded bg-[var(--color-primary)] px-4 py-2 font-medium text-white disabled:opacity-50 order-1 sm:order-2"
+              >
+                Visszakapcsolom
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {existingInstall && (
         <div

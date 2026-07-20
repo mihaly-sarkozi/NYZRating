@@ -4,6 +4,7 @@
 
 import { isValidHuTaxId } from "../../../billing/billingCountries";
 import type { BillingFieldErrors, BillingFormState } from "./billingTypes";
+import { isValidGoogleReviewUrl, normalizeGoogleReviewUrl } from "./googleReviewUrl";
 
 export function validateBillingForm(form: BillingFormState, t: (key: string) => string): BillingFieldErrors {
   const validateRequired = (value: string) => (value.trim() ? "" : t("settings.billingFieldRequired"));
@@ -24,6 +25,11 @@ export function validateBillingForm(form: BillingFormState, t: (key: string) => 
   if (cityError) errors.city = cityError;
   const addressLineError = validateRequired(form.addressLine);
   if (addressLineError) errors.addressLine = addressLineError;
+
+  const reviewUrl = normalizeGoogleReviewUrl(form.googleReviewUrl);
+  if (reviewUrl && !isValidGoogleReviewUrl(reviewUrl)) {
+    errors.googleReviewUrl = t("settings.billingInvalidGoogleReviewUrl");
+  }
 
   return errors;
 }

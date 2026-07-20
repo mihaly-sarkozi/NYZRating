@@ -98,6 +98,7 @@ class SettingsFacade:
         billing_city: str | None = None,
         billing_region: str | None = None,
         billing_country: str | None = None,
+        google_review_url: str | None = None,
         updated_by: int | None = None,
     ) -> BillingSettingsState:
         return self._billing_service.update_billing_settings(
@@ -111,6 +112,7 @@ class SettingsFacade:
                 billing_city=billing_city,
                 billing_region=billing_region,
                 billing_country=billing_country,
+                google_review_url=google_review_url,
             ),
             updated_by=updated_by,
         )
@@ -131,6 +133,7 @@ class SettingsFacade:
         billing_city: str | None = None,
         billing_region: str | None = None,
         billing_country: str | None = None,
+        google_review_url: str | None = None,
         updated_by: int | None = None,
     ) -> SettingsState:
         billing_payload_data = {
@@ -143,6 +146,7 @@ class SettingsFacade:
             "billing_city": billing_city,
             "billing_region": billing_region,
             "billing_country": billing_country,
+            "google_review_url": google_review_url,
         }
         billing_payload = BillingSettingsUpdate(**billing_payload_data)
         if any(value is not None for value in billing_payload_data.values()):

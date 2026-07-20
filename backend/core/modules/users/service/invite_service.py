@@ -45,15 +45,21 @@ class InviteService(TransactionalService):
 
     # Meghívó token érvényességének ellenőrzése 
     def validate_invite_token(self, token: str) -> str:
+        status, _email = self.validate_invite_token_details(token)
+        return status
+
+    def validate_invite_token_details(self, token: str) -> tuple[str, str | None]:
         if not token:
-            return "invalid"
+            return "invalid", None
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         record = self.invite_token_repo.get_by_token_hash(token_hash)
         if not record or record.used_at:
-            return "invalid"
+            return "invalid", None
         if record.expires_at < utc_now():
-            return "expired"
-        return "valid"
+            return "expired", None
+        user = self.user_repository.get_by_id(record.user_id)
+        email = str(getattr(user, "email", "") or "").strip() if user is not None else ""
+        return "valid", email or None
 
     # Jelszó beállítása meghívó token alapján
     def set_password(self, token: str, password: str) -> None:

@@ -26,6 +26,7 @@ class TokenService:
         audience: str | None = None,
         access_exp_min: int = 15,
         refresh_exp_min: int = 60 * 24 * 30,
+        refresh_session_exp_min: int | None = None,
         clock: Clock | None = None,
     ):
         """
@@ -33,13 +34,19 @@ class TokenService:
         issuer: "iss" claim (élesben kötelező – más környezetből kiadott token ne legyen elfogadható).
         audience: Opcionális "aud" claim (pl. API azonosító).
         access_exp_min: Access token érvényessége percekben.
-        refresh_exp_min: Refresh token érvényessége percekben (pl. 30 nap).
+        refresh_exp_min: Refresh token érvényessége percekben auto_login esetén (pl. 30 nap).
+        refresh_session_exp_min: Refresh token érvényessége percekben auto_login nélkül (pl. 24 óra).
         """
         self.secret = secret
         self.issuer = issuer
         self.audience = audience
         self.access_exp = access_exp_min
         self.refresh_exp = refresh_exp_min
+        self.refresh_session_exp = (
+            int(refresh_session_exp_min)
+            if refresh_session_exp_min is not None
+            else max(60, int(refresh_exp_min))
+        )
         self.alg = "HS256"
         self.clock = clock or SystemClock()
 
@@ -122,13 +129,14 @@ class TokenService:
         """
         now = self._now()
         jti = str(uuid.uuid4())
+        refresh_minutes = self.refresh_exp if auto_login else self.refresh_session_exp
         payload = {
             "sub": str(user_id),
             "typ": "refresh",
             "jti": jti,
             "user_ver": user_ver,
             "tenant_ver": tenant_ver,
-            "exp": now + datetime.timedelta(minutes=self.refresh_exp),
+            "exp": now + datetime.timedelta(minutes=refresh_minutes),
             "iat": now,
             "nbf": now,
             "al": auto_login,

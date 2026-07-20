@@ -110,6 +110,7 @@ class BillingSettingsState:
     billing_city: str = ""
     billing_region: str = ""
     billing_country: str = ""
+    google_review_url: str = ""
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, dict):
@@ -149,6 +150,7 @@ class SettingsState:
     billing_city: str = ""
     billing_region: str = ""
     billing_country: str = ""
+    google_review_url: str = ""
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, dict):

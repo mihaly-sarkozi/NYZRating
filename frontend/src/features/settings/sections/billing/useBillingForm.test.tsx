@@ -42,6 +42,7 @@ describe("useBillingForm", () => {
       billing_city: "",
       billing_region: "",
       billing_country: "HU",
+      google_review_url: "",
     });
     patchBillingSettingsMock.mockResolvedValue({});
   });

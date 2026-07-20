@@ -35,6 +35,7 @@ class BillingSettingsUpdateRequest(BaseModel):
     billing_city: StrictStr | None = None
     billing_region: StrictStr | None = None
     billing_country: StrictStr | None = None
+    google_review_url: StrictStr | None = None
 
 
 class SettingsUpdateRequest(TwoFactorSettingsUpdateRequest, LocaleSettingsUpdateRequest, BillingSettingsUpdateRequest):

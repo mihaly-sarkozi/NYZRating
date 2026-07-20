@@ -9,7 +9,7 @@ pytestmark = pytest.mark.integration
 
 def test_validate_set_password_invalid_token_returns_400(client_superuser: TestClient, mock_user_service):
     """GET /users/set-password/validate invalid token → 400 (auth nem kell a végponthoz)."""
-    mock_user_service.validate_invite_token.return_value = "invalid"
+    mock_user_service.validate_invite_token_details.return_value = ("invalid", None)
     r = client_superuser.get("/api/users/set-password/validate", params={"token": "any"})
     assert r.status_code == 400
 
@@ -24,14 +24,14 @@ def test_validate_set_password_token_missing_returns_400(client_superuser: TestC
 
 def test_validate_set_password_token_invalid_returns_400(client_superuser: TestClient, mock_user_service):
     """GET /users/set-password/validate?token=bad → 400 invalid."""
-    mock_user_service.validate_invite_token.return_value = "invalid"
+    mock_user_service.validate_invite_token_details.return_value = ("invalid", None)
     r = client_superuser.get("/api/users/set-password/validate", params={"token": "bad"})
     assert r.status_code == 400
 
 
 def test_validate_set_password_token_expired_returns_410(client_superuser: TestClient, mock_user_service):
     """GET /users/set-password/validate?token=expired → 410."""
-    mock_user_service.validate_invite_token.return_value = "expired"
+    mock_user_service.validate_invite_token_details.return_value = ("expired", None)
     r = client_superuser.get("/api/users/set-password/validate", params={"token": "expired"})
     assert r.status_code == 410
     data = r.json().get("detail", {})
@@ -39,11 +39,12 @@ def test_validate_set_password_token_expired_returns_410(client_superuser: TestC
 
 
 def test_validate_set_password_token_valid_returns_200(client_superuser: TestClient, mock_user_service):
-    """GET /users/set-password/validate?token=good → 200, valid: true (auth nem kell)."""
-    mock_user_service.validate_invite_token.return_value = "valid"
+    """GET /users/set-password/validate?token=good → 200, valid: true + email (auth nem kell)."""
+    mock_user_service.validate_invite_token_details.return_value = ("valid", "owner@example.com")
     r = client_superuser.get("/api/users/set-password/validate", params={"token": "good"})
     assert r.status_code == 200
     assert r.json().get("valid") is True
+    assert r.json().get("email") == "owner@example.com"
 
 
 def test_set_password_invalid_token_returns_400(client_superuser: TestClient, mock_user_service):

@@ -24,6 +24,7 @@ def coerce_settings_state(payload: dict[str, object]) -> SettingsState:
         billing_city=str(payload.get("billing_city", "") or ""),
         billing_region=str(payload.get("billing_region", "") or ""),
         billing_country=str(payload.get("billing_country", "") or ""),
+        google_review_url=str(payload.get("google_review_url", "") or ""),
     )
 
 

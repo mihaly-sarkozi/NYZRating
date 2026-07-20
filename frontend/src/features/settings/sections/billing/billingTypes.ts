@@ -14,6 +14,7 @@ export type BillingFormState = {
   city: string;
   region: string;
   country: string;
+  googleReviewUrl: string;
 };
 
 export type BillingFieldKey =
@@ -25,8 +26,12 @@ export type BillingFieldKey =
   | "postalCode"
   | "city"
   | "region"
-  | "country";
+  | "country"
+  | "googleReviewUrl";
 
 export type BillingFieldErrors = Partial<
-  Record<"fullName" | "companyName" | "taxId" | "country" | "postalCode" | "region" | "city" | "addressLine", string>
+  Record<
+    "fullName" | "companyName" | "taxId" | "country" | "postalCode" | "region" | "city" | "addressLine" | "googleReviewUrl",
+    string
+  >
 >;

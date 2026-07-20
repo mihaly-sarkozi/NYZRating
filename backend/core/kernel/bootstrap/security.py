@@ -67,6 +67,7 @@ def build_security(
         audience=audience or None,
         access_exp_min=settings.access_ttl_min,
         refresh_exp_min=settings.refresh_ttl_days * 24 * 60,
+        refresh_session_exp_min=int(getattr(settings, "refresh_ttl_session_hours", 24) or 24) * 60,
         clock=effective_clock,
     )
 

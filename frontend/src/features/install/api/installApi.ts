@@ -56,6 +56,7 @@ export interface InstallSignupBody {
   company_name?: string;
   address?: string;
   phone?: string;
+  google_review_url?: string;
   plan_code?: string;
   billing_period?: string;
   demo_session_id: string;

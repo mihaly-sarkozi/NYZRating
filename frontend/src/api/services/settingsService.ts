@@ -59,6 +59,7 @@ export type SettingsResponse = {
   billing_city: string;
   billing_region: string;
   billing_country: string;
+  google_review_url: string;
 };
 
 export type TwoFactorSettingsResponse = Pick<SettingsResponse, "two_factor_enabled">;
@@ -74,6 +75,7 @@ export type BillingSettingsResponse = Pick<
   | "billing_city"
   | "billing_region"
   | "billing_country"
+  | "google_review_url"
 >;
 
 export type PatchTwoFactorSettingsPayload = Partial<TwoFactorSettingsResponse>;
@@ -154,4 +156,5 @@ export type LegacyPatchSettingsPayload = {
   billing_city?: string;
   billing_region?: string;
   billing_country?: string;
+  google_review_url?: string;
 };

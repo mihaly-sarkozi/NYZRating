@@ -28,9 +28,9 @@ def validate_set_password_token(
     token: str = "",
     invite_svc: InviteService = Depends(get_invite_service),
 ):
-    status = invite_svc.validate_invite_token(token or "")
+    status, email = invite_svc.validate_invite_token_details(token or "")
     if status == "valid":
-        return {"valid": True}
+        return {"valid": True, "email": email}
     if status == "expired":
         raise HTTPException(
             status_code=410,

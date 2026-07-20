@@ -245,6 +245,7 @@ def mock_user_service(sample_user):
 
     svc.update.side_effect = _update
     svc.validate_invite_token.return_value = "invalid"
+    svc.validate_invite_token_details.return_value = ("invalid", None)
     svc.set_password.side_effect = None
     svc.resend_invite.side_effect = None
     return svc

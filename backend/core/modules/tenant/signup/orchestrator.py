@@ -41,6 +41,7 @@ from core.modules.tenant.signup.errors import (
     DemoEmailBlockedError,
     DemoSignupInvalidEmailDomainError,
     DemoSignupRateLimitedError,
+    BusinessAlreadyExistsError,
     InvalidSlugError,
     NameRequiredError,
 )
@@ -48,8 +49,11 @@ from core.kernel.config.config_loader import settings
 from core.kernel.config.config_loader import get_app_env
 from core.kernel.config.environment import is_test_env
 from core.kernel.logging.observability import increment_metric
+from apps.settings.domain.google_review_url import normalize_google_review_url
 from core.modules.tenant.extensions.tenant_hooks import get_tenant_signup_hooks
+from core.modules.tenant.helpers.tenant_frontend_url_helper import tenant_frontend_base_url_by_slug
 from shared.utils.slug import slug_is_valid
+from urllib.parse import urlencode
 
 _DISPOSABLE_EMAIL_DOMAINS = {
     "mailinator.com",
@@ -178,6 +182,55 @@ class TenantSignupOrchestrator:
             return None
         return self._tenant_repo.get_by_slug(slug)
 
+    def _business_reconnect_login_url(self, tenant_slug: str) -> str:
+        base = tenant_frontend_base_url_by_slug(tenant_slug).rstrip("/")
+        query = urlencode({"redirect": "/admin/pricing"})
+        return f"{base}/login?{query}"
+
+    def _raise_business_already_exists(self, *, tenant_slug: str) -> None:
+        normalized_slug = (tenant_slug or "").strip().lower()
+        if not normalized_slug:
+            raise BusinessAlreadyExistsError(
+                tenant_slug="",
+                login_url="",
+                is_active=False,
+            )
+        tenant = self._tenant_repo.get_by_slug(normalized_slug)
+        is_active = bool(getattr(tenant, "is_active", False)) if tenant is not None else False
+        raise BusinessAlreadyExistsError(
+            tenant_slug=normalized_slug,
+            login_url=self._business_reconnect_login_url(normalized_slug),
+            is_active=is_active,
+        )
+
+    def _assert_email_not_blocked_for_business(self, *, email: str, google_review_url: str) -> None:
+        """Leiratkozás után az email csak ugyanarra az üzletre tiltott; más bolt mehet."""
+        get_entry = getattr(self._demo_signup_repo, "get_email_blocklist_entry", None)
+        if not callable(get_entry):
+            if self._demo_signup_repo.is_email_blocked(email):
+                raise DemoEmailBlockedError()
+            return
+        entry = get_entry(email)
+        if not entry:
+            return
+        if not google_review_url:
+            raise DemoEmailBlockedError()
+        blocked_slug = str(entry.get("source_tenant_slug") or "").strip().lower()
+        if not blocked_slug:
+            raise DemoEmailBlockedError()
+        find_url = getattr(self._demo_signup_repo, "find_google_review_url_by_tenant_slug", None)
+        blocked_url = ""
+        if callable(find_url):
+            blocked_url = normalize_google_review_url(find_url(blocked_slug) or "")
+        if blocked_url and blocked_url == google_review_url:
+            raise DemoEmailBlockedError()
+        # Ha nincs eltárolt review URL, a forrás tenant slug egyezése a completed sessionnel számít.
+        completed = getattr(self._demo_signup_repo, "find_latest_completed_by_google_review_url", None)
+        if callable(completed):
+            row = completed(google_review_url)
+            if row and str(row.get("tenant_slug") or "").strip().lower() == blocked_slug:
+                raise DemoEmailBlockedError()
+
     @staticmethod
     def _ensure_demo_session_id(demo_session_id: str | None) -> str:
         normalized = (demo_session_id or "").strip()
@@ -261,50 +314,84 @@ class TenantSignupOrchestrator:
         subscription_period: str | None = "monthly",
         demo_session_id: str | None = None,
         remote_ip: str | None = None,
+        google_review_url: str | None = None,
     ) -> DemoSignupResult:
         del address, phone  # reserved for future use
-        _ = resend_existing_access  # API compat; ismételt emailnél mindig auto-resend
+        _ = resend_existing_access  # API compat
         counters_counted = False
 
         normalized_email = (email or "").strip().lower()
         owner_name = (name or "").strip()
         company = (company_name or "").strip()
+        review_url = normalize_google_review_url(google_review_url)
         # Tenant slug mindig a cégnévből (fallback: név), nem személyes vagy régi session értékből.
         slug_source = company or owner_name
         self._maybe_cleanup_expired_demos()
-        if self._demo_signup_repo.is_email_blocked(normalized_email):
-            raise DemoEmailBlockedError()
         self._validate_email_domain(normalized_email)
         if not slug_source:
             raise NameRequiredError()
         demo_session_id = self._ensure_demo_session_id(demo_session_id)
 
         preferred_locale = normalize_demo_locale(locale)
-        existing_tenant = self._find_demo_tenant_by_email(normalized_email)
-        if existing_tenant is not None:
-            # Ugyanarra az emailre ismételt signup = set-password / access újraküldés (ne 409).
-            return self._resend_use_case.execute(
-                existing_tenant=existing_tenant,
-                email=normalized_email,
-                preferred_locale=preferred_locale,
-                owner_name=owner_name or company,
-                demo_session_id=demo_session_id,
-            )
+
+        # Ugyanaz az üzlet (Google vélemény link) = nincs új demó; visszakapcsolás.
+        find_completed_business = getattr(
+            self._demo_signup_repo, "find_latest_completed_by_google_review_url", None
+        )
+        if review_url and callable(find_completed_business):
+            existing_business = find_completed_business(review_url)
+            if existing_business is not None:
+                self._raise_business_already_exists(
+                    tenant_slug=str(existing_business.get("tenant_slug") or ""),
+                )
+
+        find_pending_business = getattr(
+            self._demo_signup_repo, "find_latest_pending_by_google_review_url", None
+        )
+        pending_same_business = None
+        if review_url and callable(find_pending_business):
+            pending_same_business = find_pending_business(review_url)
 
         # Provision CSAK email-confirm után (test env kivétel).
         try:
             require_verify = not is_test_env(get_app_env())
         except Exception:
             require_verify = True
-        pending = None
+
+        if pending_same_business is not None:
+            pending_email = str(pending_same_business.get("email") or "").strip().lower()
+            if pending_email == normalized_email:
+                return self._new_signup_use_case.resend_pending_verification(
+                    email=normalized_email,
+                    preferred_locale=preferred_locale,
+                )
+            # Más email már indított regisztrációt ugyanezzel a bolttal.
+            pending_slug = str(pending_same_business.get("tenant_slug") or "").strip()
+            if pending_slug:
+                self._raise_business_already_exists(tenant_slug=pending_slug)
+            raise BusinessAlreadyExistsError(
+                tenant_slug="",
+                login_url="",
+                is_active=False,
+                message="business_registration_in_progress",
+            )
+
+        # Ugyanarra az emailre pending MENő más bolt → új signup engedélyezett.
+        # Ugyanarra az emailre pending UGYANAZ a bolt a fenti ágon kezelt.
         if require_verify and hasattr(self._demo_signup_repo, "find_latest_pending_session_by_email"):
             pending = self._demo_signup_repo.find_latest_pending_session_by_email(normalized_email)
-        if pending is not None:
-            # Pending megerősítés: ismételt signup = confirm email újraküldés (ne 409).
-            return self._new_signup_use_case.resend_pending_verification(
-                email=normalized_email,
-                preferred_locale=preferred_locale,
-            )
+            if pending is not None:
+                pending_url = normalize_google_review_url(str(pending.get("google_review_url") or ""))
+                if pending_url and pending_url == review_url:
+                    return self._new_signup_use_case.resend_pending_verification(
+                        email=normalized_email,
+                        preferred_locale=preferred_locale,
+                    )
+
+        self._assert_email_not_blocked_for_business(
+            email=normalized_email,
+            google_review_url=review_url,
+        )
 
         self._enforce_signup_limits(
             email=normalized_email,
@@ -332,6 +419,7 @@ class TenantSignupOrchestrator:
                 plan_code=normalized_plan,
                 subscription_period=normalized_period,
                 demo_session_id=demo_session_id,
+                google_review_url=review_url,
             )
             if require_verify:
                 result = self._new_signup_use_case.start_pending(**signup_kwargs)

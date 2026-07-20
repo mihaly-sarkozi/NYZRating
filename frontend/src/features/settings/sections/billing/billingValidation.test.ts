@@ -18,6 +18,7 @@ const baseForm: BillingFormState = {
   city: "Budapest",
   region: "",
   country: "HU",
+  googleReviewUrl: "",
 };
 
 describe("validateBillingForm", () => {

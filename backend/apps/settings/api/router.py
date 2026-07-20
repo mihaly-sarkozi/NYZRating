@@ -67,6 +67,7 @@ def update_billing_settings(
         billing_city=body.billing_city,
         billing_region=body.billing_region,
         billing_country=body.billing_country,
+        google_review_url=body.google_review_url,
         updated_by=current_user.id,
     )
 
@@ -131,6 +132,7 @@ def update_settings(
         body.billing_city,
         body.billing_region,
         body.billing_country,
+        body.google_review_url,
     )
     if any(value is not None for value in billing_fields) and getattr(current_user, "role", None) not in {"owner", "admin"}:
         raise HTTPException(status_code=403, detail="Only owner or admin can update billing settings.")
@@ -148,6 +150,7 @@ def update_settings(
         billing_city=body.billing_city,
         billing_region=body.billing_region,
         billing_country=body.billing_country,
+        google_review_url=body.google_review_url,
         updated_by=current_user.id,
     )
 

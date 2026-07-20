@@ -31,6 +31,23 @@ class DemoAlreadyExistsError(SignupError):
     """Ezzel az email-lel már létezik demo tenant."""
 
 
+class BusinessAlreadyExistsError(SignupError):
+    """Ez az üzlet (Google vélemény link) már regisztrálva van — visszakapcsolás szükséges."""
+
+    def __init__(
+        self,
+        *,
+        tenant_slug: str,
+        login_url: str,
+        is_active: bool = True,
+        message: str | None = None,
+    ) -> None:
+        self.tenant_slug = tenant_slug
+        self.login_url = login_url
+        self.is_active = is_active
+        super().__init__(message or "business_exists")
+
+
 class DemoEmailBlockedError(SignupError):
     """Ez az email cím le van tiltva (korábbi leiratkozás miatt)."""
 

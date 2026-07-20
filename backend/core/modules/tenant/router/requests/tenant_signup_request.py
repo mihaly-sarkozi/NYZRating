@@ -18,3 +18,4 @@ class TenantSignupRequest(BaseModel):
     billing_period: str | None = "monthly"
     demo_session_id: str | None = None
     captcha_token: str | None = None
+    google_review_url: str | None = None

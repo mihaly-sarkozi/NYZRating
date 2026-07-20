@@ -105,15 +105,20 @@ class TenantMiddleware:
             return False
 
     def _try_billing_recovery(self, snapshot, path: str) -> bool | str:
-        """Inaktív tenant tartozással: engedélyezett recovery path, egyébként blocked_path, nincs tartozás: False."""
+        """Inaktív tenant: auth/billing/settings recovery (tartozás vagy visszakapcsolás).
+
+        - Recovery path → True (login + csomagválasztás / fizetés).
+        - Egyéb path + tartozás → blocked_path.
+        - Egyéb path + nincs tartozás → False (404).
+        """
         tenant_id = getattr(snapshot, "tenant_id", None)
         if tenant_id is None:
             return False
-        if not self._has_unpaid_billing_debt(int(tenant_id)):
-            return False
         if self._is_billing_recovery_path(path):
             return True
-        return "blocked_path"
+        if self._has_unpaid_billing_debt(int(tenant_id)):
+            return "blocked_path"
+        return False
 
     # Ez az aszinkron metódus a Python-specifikus speciális működést valósítja meg.
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

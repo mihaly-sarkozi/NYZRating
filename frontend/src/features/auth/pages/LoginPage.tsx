@@ -12,8 +12,8 @@ import Button from "../../../components/ui/Button";
 import { isTenantSubdomain } from "../../../utils/domain";
 import { fetchBillingAccessStatus } from "../../billing/hooks/useBilling";
 
-const LOGIN_REMEMBER_EMAIL_KEY = "NYZRating_login_remember_email";
 const LOGIN_COOLDOWN_SECONDS = 30;
+const LEGACY_LOGIN_REMEMBER_EMAIL_KEY = "NYZRating_login_remember_email";
 
 export default function Login() {
   const { t } = useTranslation();
@@ -32,6 +32,15 @@ export default function Login() {
     if (!demoToken) return;
     navigate(`/install-login?token=${encodeURIComponent(demoToken)}`, { replace: true });
   }, [demoToken, navigate]);
+
+  useEffect(() => {
+    // Régi email-localStorage: jelszót/azonosítót ne tartsunk JS storage-ban.
+    try {
+      localStorage.removeItem(LEGACY_LOGIN_REMEMBER_EMAIL_KEY);
+    } catch {
+      void 0;
+    }
+  }, []);
 
   useEffect(() => {
     if (!(token && user)) return;
@@ -70,23 +79,12 @@ export default function Login() {
     await loadUser();
   };
 
-  const [email, setEmail] = useState(() => {
-    try {
-      return localStorage.getItem(LOGIN_REMEMBER_EMAIL_KEY) ?? "";
-    } catch {
-      return "";
-    }
-  });
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState("");
-  const [autoLogin, setAutoLogin] = useState(() => {
-    try {
-      return !!localStorage.getItem(LOGIN_REMEMBER_EMAIL_KEY);
-    } catch {
-      return false;
-    }
-  });
+  // Alapból bejelölve: 30 napos HttpOnly refresh cookie; email/jelszó a telefon jelszókezelőjére megy.
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState("");
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [pendingChallengeType, setPendingChallengeType] = useState<"email" | "authenticator">("email");
@@ -113,8 +111,8 @@ export default function Login() {
     setError("");
 
     const payload = pendingToken
-      ? { pending_token: pendingToken, two_factor_code: twoFactorCode, auto_login: autoLogin }
-      : { email, password, auto_login: autoLogin };
+      ? { pending_token: pendingToken, two_factor_code: twoFactorCode, auto_login: rememberMe }
+      : { email, password, auto_login: rememberMe };
 
     const doLogin = async () => {
       const data = await loginMutation.mutateAsync(payload);
@@ -127,15 +125,6 @@ export default function Login() {
       }
       const access_token = data.access_token;
       if (!access_token) return;
-      try {
-        if (autoLogin && email) {
-          localStorage.setItem(LOGIN_REMEMBER_EMAIL_KEY, email);
-        } else {
-          localStorage.removeItem(LOGIN_REMEMBER_EMAIL_KEY);
-        }
-      } catch {
-        void 0;
-      }
       await handleLoginSuccess(access_token);
     };
 
@@ -197,6 +186,7 @@ export default function Login() {
                 <label className="block mb-1 text-[var(--color-label)]">{t("login.emailLabel")}</label>
                 <input
                   type="email"
+                  name="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full p-3 rounded-md bg-[var(--color-input-bg)] border border-[var(--color-border)] text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border)] disabled:opacity-60 disabled:cursor-not-allowed"
@@ -213,6 +203,7 @@ export default function Login() {
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
+                    name="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full p-3 pr-10 rounded-md bg-[var(--color-input-bg)] border border-[var(--color-border)] text-[var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--color-border)] disabled:opacity-60 disabled:cursor-not-allowed"
@@ -268,19 +259,10 @@ export default function Login() {
               <label className="flex items-center gap-2 text-sm text-[var(--color-label)] select-none">
                 <input
                   type="checkbox"
-                  checked={autoLogin}
+                  name="remember_me"
+                  checked={rememberMe}
                   disabled={cooldownSecondsRemaining > 0}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setAutoLogin(checked);
-                    if (!checked) {
-                      try {
-                        localStorage.removeItem(LOGIN_REMEMBER_EMAIL_KEY);
-                      } catch {
-                        void 0;
-                      }
-                    }
-                  }}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 shrink-0 accent-[var(--color-primary)] cursor-pointer rounded border border-[var(--color-border)] bg-[var(--color-input-bg)]"
                   style={{
                     display: "inline-block",

@@ -21,6 +21,7 @@ const EMPTY_FORM: BillingFormState = {
   city: "",
   region: "",
   country: "HU",
+  googleReviewUrl: "",
 };
 
 export function useBillingForm(t: (key: string) => string) {

@@ -5,6 +5,7 @@
 import SettingsBlock from "../../components/SettingsBlock";
 import type { Locale } from "../../../../i18n";
 import type { BillingFieldErrors, BillingFormState } from "./billingTypes";
+import GoogleReviewInfoButton from "./GoogleReviewInfoButton";
 
 type BillingSettingsSectionProps = {
   title: string;
@@ -30,6 +31,27 @@ export default function BillingSettingsSection({ title, disabled, locale, t, for
             required
             error={errors.companyName}
           />
+          <div className="block text-sm text-[var(--color-label)]">
+            <span className="mb-1 inline-flex items-center gap-2">
+              {t("settings.billingGoogleReviewUrl")}
+              <GoogleReviewInfoButton title={t("settings.googleReviewInfoTitle")}>
+                <p>{t("settings.googleReviewInfoBody1")}</p>
+                <p>{t("settings.googleReviewInfoBody2")}</p>
+                <p className="font-mono text-[var(--color-foreground)]">{t("settings.googleReviewInfoFormat")}</p>
+              </GoogleReviewInfoButton>
+            </span>
+            <input
+              value={form.googleReviewUrl}
+              onChange={(event) => onFieldChange("googleReviewUrl", event.target.value)}
+              className="mt-1 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-input-bg)] px-3 py-2 text-sm text-[var(--color-foreground)]"
+              disabled={disabled}
+              placeholder="https://g.page/r/.../review"
+              aria-invalid={Boolean(errors.googleReviewUrl)}
+            />
+            {errors.googleReviewUrl ? (
+              <span className="mt-1 block text-xs text-red-600 dark:text-red-400">{errors.googleReviewUrl}</span>
+            ) : null}
+          </div>
           <TextField
             label={t("settings.billingTaxId")}
             value={form.taxId}

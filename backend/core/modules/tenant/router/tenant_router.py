@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.exc import SQLAlchemyError
 
+from apps.settings.domain.google_review_url import is_valid_google_review_url, normalize_google_review_url
 from core.kernel.cache import redis_configured
 from core.modules.tenant.dependencies import get_tenant_signup_service
 from core.kernel.config.config_loader import settings
@@ -22,6 +23,7 @@ from shared.utils.slug import slug_is_valid
 from core.modules.tenant.router.requests import ConfirmSignupRequest, TenantSignupRequest
 from core.modules.tenant.service import TenantSignupService
 from core.modules.tenant.signup.errors import (
+    BusinessAlreadyExistsError,
     DemoAlreadyExistsError,
     DemoSignupCapacityReachedError,
     DemoSignupDisabledError,
@@ -163,6 +165,14 @@ def tenant_signup(
         raise HTTPException(status_code=400, detail="Érvényes email szükséges.")
     if not company_name:
         raise HTTPException(status_code=400, detail="A cégnév kötelező.")
+    google_review_url = normalize_google_review_url(body.google_review_url)
+    if not google_review_url:
+        raise HTTPException(status_code=400, detail="A Google vélemény link kötelező.")
+    if not is_valid_google_review_url(google_review_url):
+        raise HTTPException(
+            status_code=400,
+            detail="Érvénytelen Google vélemény link. Formátum: https://g.page/r/.../review",
+        )
     _verify_signup_captcha_or_raise(request, body.captcha_token)
     _DEMO_EXISTS_DETAIL = {
         "reason": "demo_exists",
@@ -185,6 +195,7 @@ def tenant_signup(
             subscription_period=(body.billing_period or "monthly").strip().lower() or "monthly",
             demo_session_id=(body.demo_session_id or "").strip() or None,
             remote_ip=_client_ip(request),
+            google_review_url=google_review_url,
         )
     except DemoSessionRequiredError:
         raise HTTPException(status_code=400, detail="Hiányzik a demo session azonosító.")
@@ -194,6 +205,22 @@ def tenant_signup(
         raise HTTPException(status_code=400, detail="A név kötelező.")
     except DemoAlreadyExistsError:
         raise HTTPException(status_code=409, detail=_DEMO_EXISTS_DETAIL)
+    except BusinessAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason": "business_exists",
+                "message": (
+                    "Ez az üzlet már regisztrálva volt. "
+                    "Teszt elérés nem indítható újra — válassz csomagot, fizess, "
+                    "és kapcsold vissza a szolgáltatást."
+                ),
+                "tenant_slug": exc.tenant_slug,
+                "login_url": exc.login_url,
+                "is_active": exc.is_active,
+                "reactivation_required": True,
+            },
+        )
     except DemoSignupVerificationExpiredError:
         raise HTTPException(
             status_code=410,

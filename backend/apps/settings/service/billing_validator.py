@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException
 
+from apps.settings.domain.google_review_url import is_valid_google_review_url, normalize_google_review_url
 from apps.settings.domain.hu_tax_id import FIXED_BILLING_COUNTRY, is_valid_hu_tax_id, normalize_hu_tax_id
 
 
@@ -22,6 +23,7 @@ class BillingSettingsUpdate:
     billing_city: str | None = None
     billing_region: str | None = None
     billing_country: str | None = None
+    google_review_url: str | None = None
 
 
 class BillingSettingsValidator:
@@ -45,6 +47,17 @@ class BillingSettingsValidator:
         postal = (payload.billing_postal_code or "").strip()
         city = (payload.billing_city or "").strip()
         address = (payload.billing_address_line or "").strip()
+        google_review_url_raw = payload.google_review_url
+        google_review_url: str | None
+        if google_review_url_raw is None:
+            google_review_url = None
+        else:
+            google_review_url = normalize_google_review_url(google_review_url_raw)
+            if google_review_url and not is_valid_google_review_url(google_review_url):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Invalid Google review URL. Expected format: https://g.page/r/.../review",
+                )
 
         missing = [
             key
@@ -73,6 +86,7 @@ class BillingSettingsValidator:
             billing_city=city,
             billing_region="",
             billing_country=country,
+            google_review_url=google_review_url,
         )
 
 

@@ -17,12 +17,14 @@ describe("billingMapper", () => {
       billing_city: "Budapest",
       billing_region: "Pest",
       billing_country: "DE",
+      google_review_url: "https://g.page/r/AbCdEf/review",
     });
     expect(form.companyName).toBe("Acme Kft");
     expect(form.customerType).toBe("company");
     expect(form.fullName).toBe("");
     expect(form.country).toBe("HU");
     expect(form.region).toBe("");
+    expect(form.googleReviewUrl).toBe("https://g.page/r/AbCdEf/review");
   });
 
   it("maps form into normalized API payload", () => {
@@ -36,6 +38,7 @@ describe("billingMapper", () => {
       city: "Budapest",
       region: "Pest",
       country: "DE",
+      googleReviewUrl: "https://g.page/r/AbCdEf/review/",
     });
     expect(payload.billing_customer_type).toBe("company");
     expect(payload.billing_full_name).toBe("");
@@ -44,5 +47,6 @@ describe("billingMapper", () => {
     expect(payload.billing_country).toBe("HU");
     expect(payload.billing_region).toBe("");
     expect(payload.billing_postal_code).toBe("11 11");
+    expect(payload.google_review_url).toBe("https://g.page/r/AbCdEf/review");
   });
 });

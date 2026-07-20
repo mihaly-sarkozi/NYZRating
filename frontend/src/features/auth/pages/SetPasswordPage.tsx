@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import api from "../../../api/axiosClient";
+import api, { fetchCsrfToken } from "../../../api/axiosClient";
 import { useSetPasswordMutation } from "../hooks/useAuth";
+import { useAuthStore } from "../state/authStore";
+import { fetchBillingAccessStatus } from "../../billing/hooks/useBilling";
+import { isTenantSubdomain } from "../../../utils/domain";
+import { getSafeLoginRedirect } from "../../../utils/loginRedirect";
 
 type TokenStatus = "loading" | "valid" | "invalid" | "expired" | "missing";
 
@@ -9,6 +13,7 @@ export default function SetPasswordPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token") || "";
+  const { setToken, loadUser } = useAuthStore();
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -16,6 +21,10 @@ export default function SetPasswordPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [loginPending, setLoginPending] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>("loading");
   const [tokenMessage, setTokenMessage] = useState("");
   const setPasswordMutation = useSetPasswordMutation();
@@ -31,7 +40,11 @@ export default function SetPasswordPage() {
     api
       .get("/users/set-password/validate", { params: { token } })
       .then((res) => {
-        if (!cancelled && res.data?.valid) setTokenStatus("valid");
+        if (cancelled) return;
+        if (res.data?.valid) {
+          setTokenStatus("valid");
+          setUserEmail(String(res.data?.email || "").trim());
+        }
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -52,6 +65,55 @@ export default function SetPasswordPage() {
     if (typeof d === "string") return d;
     if (d && typeof d === "object" && "message" in d) return String((d as { message?: string }).message);
     return null;
+  };
+
+  const enterApp = async () => {
+    const returnTo = getSafeLoginRedirect(null);
+    if (!isTenantSubdomain()) {
+      navigate(returnTo, { replace: true });
+      return;
+    }
+    try {
+      const access = await fetchBillingAccessStatus();
+      if (access.billing_lock) {
+        navigate(access.redirect_path || "/admin/szamlak/kiegyenlites", { replace: true });
+        return;
+      }
+    } catch {
+      // Access status hiba esetén a szokásos returnTo-ra megyünk.
+    }
+    navigate(returnTo, { replace: true });
+  };
+
+  const loginWithPassword = async (email: string, pwd: string): Promise<boolean> => {
+    setLoginPending(true);
+    setLoginError("");
+    try {
+      await fetchCsrfToken();
+      const res = await api.post<{ access_token?: string; pending_token?: string }>("/auth/login", {
+        email,
+        password: pwd,
+        auto_login: true,
+      });
+      if (res.data?.pending_token) {
+        setLoginError("A fiókhoz kétfaktoros hitelesítés szükséges. Lépj be a bejelentkezési oldalon.");
+        return false;
+      }
+      const accessToken = String(res.data?.access_token || "").trim();
+      if (!accessToken) {
+        setLoginError("A belépés nem sikerült. Próbáld a bejelentkezési oldalon.");
+        return false;
+      }
+      setToken(accessToken);
+      await loadUser();
+      setLoggedIn(true);
+      return true;
+    } catch (err) {
+      setLoginError(getDetailMessage(err) || "A belépés nem sikerült. Próbáld a bejelentkezési oldalon.");
+      return false;
+    } finally {
+      setLoginPending(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -81,7 +143,12 @@ export default function SetPasswordPage() {
     setPasswordMutation.mutate(
       { token, password },
       {
-        onSuccess: () => setSuccess(true),
+        onSuccess: async () => {
+          setSuccess(true);
+          if (userEmail) {
+            await loginWithPassword(userEmail, password);
+          }
+        },
         onError: (err) => setError(getDetailMessage(err) || "Ismeretlen hiba. Próbáld újra."),
       }
     );
@@ -92,14 +159,40 @@ export default function SetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-background)] text-[var(--color-foreground)] p-4">
         <div className="max-w-md w-full bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-8 shadow-sm">
           <h1 className="text-2xl font-bold mb-4 text-[var(--color-foreground)]">Jelszó beállítva</h1>
-          <p className="mb-6 text-[var(--color-foreground)]">Most már be tudsz lépni a megadott email címmel és jelszóval, és már tesztelheted is a rendszert.</p>
+          <p className="mb-6 text-[var(--color-foreground)]">
+            {loggedIn
+              ? "Sikeresen beléptél. A gombbal léphetsz be a rendszerbe."
+              : "A jelszavad mentve. Egy kattintással beléphetsz a rendszerbe."}
+          </p>
+          {loginError ? (
+            <p className="mb-4 text-sm text-red-600 dark:text-red-400">{loginError}</p>
+          ) : null}
           <button
             type="button"
-            onClick={() => navigate("/login")}
-            className="w-full bg-[var(--color-primary)] hover:opacity-90 text-[var(--color-on-primary)] py-3 rounded"
+            disabled={loginPending}
+            onClick={async () => {
+              if (loggedIn) {
+                await enterApp();
+                return;
+              }
+              if (!userEmail) {
+                navigate("/login");
+                return;
+              }
+              const ok = await loginWithPassword(userEmail, password);
+              if (ok) await enterApp();
+            }}
+            className="w-full bg-[var(--color-primary)] hover:opacity-90 text-[var(--color-on-primary)] py-3 rounded disabled:opacity-50"
           >
-            Tovább a bejelentkezéshez
+            {loginPending ? "Belépés…" : "Belépés a rendszerbe"}
           </button>
+          {!loggedIn ? (
+            <p className="mt-4 text-center text-sm text-[var(--color-muted)]">
+              <a href="/login" className="underline hover:text-[var(--color-foreground)]">
+                Bejelentkezési oldal
+              </a>
+            </p>
+          ) : null}
         </div>
       </div>
     );

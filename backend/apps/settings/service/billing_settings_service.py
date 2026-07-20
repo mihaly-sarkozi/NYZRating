@@ -25,6 +25,7 @@ class BillingSettingsService:
             billing_city=str(payload.get("billing_city", "") or ""),
             billing_region=str(payload.get("billing_region", "") or ""),
             billing_country=str(payload.get("billing_country", "") or ""),
+            google_review_url=str(payload.get("google_review_url", "") or ""),
         )
 
     def get_billing_settings(self) -> BillingSettingsState:
@@ -50,6 +51,7 @@ class BillingSettingsService:
             billing_city=valid_payload.billing_city,
             billing_region=valid_payload.billing_region,
             billing_country=valid_payload.billing_country,
+            google_review_url=valid_payload.google_review_url,
             updated_by=updated_by,
         )
         return self._coerce_billing_settings(state)

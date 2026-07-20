@@ -93,6 +93,7 @@ class DemoSignupRepository:
         preferred_locale: str,
         plan_code: str,
         subscription_period: str,
+        google_review_url: str = "",
     ) -> None:
         self.ensure_session_table()
         with self._engine.begin() as conn:
@@ -107,7 +108,8 @@ class DemoSignupRepository:
                         tenant_name = :tenant_name,
                         preferred_locale = :preferred_locale,
                         plan_code = :plan_code,
-                        subscription_period = :subscription_period
+                        subscription_period = :subscription_period,
+                        google_review_url = :google_review_url
                     WHERE session_id = :session_id
                       AND completed_at IS NULL
                     """
@@ -121,6 +123,7 @@ class DemoSignupRepository:
                     "preferred_locale": preferred_locale,
                     "plan_code": plan_code,
                     "subscription_period": subscription_period,
+                    "google_review_url": google_review_url,
                 },
             )
             if int(getattr(result, "rowcount", 0) or 0) != 1:
@@ -139,7 +142,7 @@ class DemoSignupRepository:
                     f"""
                     SELECT session_id, email, tenant_slug, requested_name,
                            owner_name, tenant_name, preferred_locale,
-                           plan_code, subscription_period,
+                           plan_code, subscription_period, google_review_url,
                            verification_expires_at, verified_at, completed_at
                     FROM {DEMO_SESSION_TABLE}
                     WHERE verification_token_hash = :token_hash
@@ -161,7 +164,7 @@ class DemoSignupRepository:
                     f"""
                     SELECT session_id, email, tenant_slug, requested_name,
                            owner_name, tenant_name, preferred_locale,
-                           plan_code, subscription_period,
+                           plan_code, subscription_period, google_review_url,
                            verification_expires_at, verified_at, completed_at
                     FROM {DEMO_SESSION_TABLE}
                     WHERE LOWER(TRIM(email)) = :email
@@ -237,6 +240,103 @@ class DemoSignupRepository:
                 {"email": normalized_email},
             ).first()
         return str(row[0]) if row else None
+
+    def find_latest_completed_by_google_review_url(self, google_review_url: str) -> dict[str, Any] | None:
+        normalized_url = (google_review_url or "").strip().rstrip("/")
+        if not normalized_url:
+            return None
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT session_id, email, tenant_slug, requested_name,
+                           owner_name, tenant_name, preferred_locale,
+                           plan_code, subscription_period, google_review_url,
+                           verification_expires_at, verified_at, completed_at
+                    FROM {DEMO_SESSION_TABLE}
+                    WHERE LOWER(RTRIM(TRIM(COALESCE(google_review_url, '')), '/'))
+                          = LOWER(:google_review_url)
+                      AND completed_at IS NOT NULL
+                      AND tenant_slug IS NOT NULL
+                      AND TRIM(tenant_slug) <> ''
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {"google_review_url": normalized_url},
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def find_latest_pending_by_google_review_url(self, google_review_url: str) -> dict[str, Any] | None:
+        normalized_url = (google_review_url or "").strip().rstrip("/")
+        if not normalized_url:
+            return None
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT session_id, email, tenant_slug, requested_name,
+                           owner_name, tenant_name, preferred_locale,
+                           plan_code, subscription_period, google_review_url,
+                           verification_expires_at, verified_at, completed_at
+                    FROM {DEMO_SESSION_TABLE}
+                    WHERE LOWER(RTRIM(TRIM(COALESCE(google_review_url, '')), '/'))
+                          = LOWER(:google_review_url)
+                      AND completed_at IS NULL
+                      AND verification_token_hash IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {"google_review_url": normalized_url},
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def get_email_blocklist_entry(self, email: str) -> dict[str, Any] | None:
+        normalized_email = (email or "").strip().lower()
+        if not normalized_email:
+            return None
+        self.ensure_blocklist_table()
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT email, blocked_at, reason, source_tenant_slug
+                    FROM {DEMO_BLOCKLIST_TABLE}
+                    WHERE LOWER(TRIM(email)) = :email
+                    LIMIT 1
+                    """
+                ),
+                {"email": normalized_email},
+            ).mappings().first()
+        return dict(row) if row else None
+
+    def find_google_review_url_by_tenant_slug(self, tenant_slug: str) -> str | None:
+        normalized_slug = (tenant_slug or "").strip().lower()
+        if not normalized_slug:
+            return None
+        self.ensure_session_table()
+        with self._engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    f"""
+                    SELECT google_review_url
+                    FROM {DEMO_SESSION_TABLE}
+                    WHERE LOWER(TRIM(tenant_slug)) = :tenant_slug
+                      AND NULLIF(TRIM(COALESCE(google_review_url, '')), '') IS NOT NULL
+                    ORDER BY
+                      CASE WHEN completed_at IS NOT NULL THEN 0 ELSE 1 END,
+                      created_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {"tenant_slug": normalized_slug},
+            ).first()
+        if not row:
+            return None
+        return str(row[0] or "").strip().rstrip("/") or None
 
     def count_completed_signups_for_email(self, email: str) -> int:
         normalized_email = (email or "").strip().lower()

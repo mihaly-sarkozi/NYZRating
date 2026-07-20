@@ -12,7 +12,10 @@ class LoginRequest(BaseModel):
     password: Optional[str] = Field(None, min_length=1, description="Jelszó (1. lépésben)")
     pending_token: Optional[str] = Field(None, description="1. lépés után kapott token (2. lépésben kötelező)")
     two_factor_code: Optional[str] = Field(None, description="2FA kód (2. lépésben kötelező)")
-    auto_login: bool = Field(False, description="Automatikus beléptetés.")
+    auto_login: bool = Field(
+        False,
+        description="Maradjak bejelentkezve: hosszabb (pl. 30 napos) HttpOnly refresh cookie.",
+    )
 
     # Ez a metódus a(z) either_step1_or_step2 logikáját valósítja meg.
     @model_validator(mode="after")

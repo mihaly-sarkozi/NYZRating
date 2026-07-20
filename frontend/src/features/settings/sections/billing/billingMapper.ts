@@ -5,6 +5,7 @@
 import { FIXED_BILLING_COUNTRY, normalizeHuTaxId, normalizePostalCode } from "../../../billing/billingCountries";
 import type { BillingSettingsResponse, PatchBillingSettingsPayload } from "../../api/settingsService";
 import type { BillingFormState } from "./billingTypes";
+import { normalizeGoogleReviewUrl } from "./googleReviewUrl";
 
 export function mapBillingResponseToForm(response: BillingSettingsResponse): BillingFormState {
   return {
@@ -17,6 +18,7 @@ export function mapBillingResponseToForm(response: BillingSettingsResponse): Bil
     city: response.billing_city ?? "",
     region: "",
     country: FIXED_BILLING_COUNTRY,
+    googleReviewUrl: normalizeGoogleReviewUrl(response.google_review_url ?? ""),
   };
 }
 
@@ -31,5 +33,6 @@ export function mapBillingFormToPayload(form: BillingFormState): PatchBillingSet
     billing_city: form.city,
     billing_region: "",
     billing_country: FIXED_BILLING_COUNTRY,
+    google_review_url: normalizeGoogleReviewUrl(form.googleReviewUrl),
   };
 }

@@ -16,5 +16,5 @@ class LoginInput:
     two_factor_code: Optional[str] # 2FA kód, amit a user beír a 2. lépésben
     ip: Optional[str] # IP cím
     ua: Optional[str] # User agent, amit a user küld a belépéskor
-    auto_login: bool = False # Automatikus belépés, ha true akkor 30 napig érvényes a belépés
+    auto_login: bool = False  # Maradjak bejelentkezve: 30 napos HttpOnly refresh cookie
     tenant: TenantAuthContext | None = None

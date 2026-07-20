@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from core.modules.tenant.signup.errors import (  # noqa: F401
+    BusinessAlreadyExistsError,
     DemoAlreadyExistsError,
     DemoEmailBlockedError,
     DemoSessionRequiredError,
@@ -15,6 +16,7 @@ from core.modules.tenant.signup.errors import (  # noqa: F401
 )
 
 __all__ = [
+    "BusinessAlreadyExistsError",
     "DemoAlreadyExistsError",
     "DemoEmailBlockedError",
     "DemoSessionRequiredError",

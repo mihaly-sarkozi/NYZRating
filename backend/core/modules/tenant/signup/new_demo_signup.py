@@ -25,8 +25,11 @@ from core.modules.tenant.signup.errors import (
     DemoSignupVerificationInvalidError,
 )
 from core.kernel.config.config_loader import settings
+from core.kernel.deps.facade import get_service
+from core.kernel.interface.keys import PLATFORM_SETTINGS_SERVICE
 from core.kernel.runtime.clock import utc_now
 from core.modules.tenant.extensions.tenant_hooks import TenantSignupContext, TenantSignupHook, get_tenant_signup_hooks
+from apps.settings.domain.google_review_url import normalize_google_review_url
 
 
 def _verification_ttl_hours() -> int:
@@ -169,6 +172,29 @@ class DemoNewSignupUseCase:
         finally:
             current_tenant_schema.reset(tenant_ctx)
 
+    def _persist_signup_company_profile(
+        self,
+        *,
+        tenant_slug: str,
+        tenant_name: str,
+        google_review_url: str,
+        updated_by: int | None,
+    ) -> None:
+        review_url = normalize_google_review_url(google_review_url)
+        company = (tenant_name or "").strip()
+        if not review_url and not company:
+            return
+        tenant_ctx = current_tenant_schema.set(tenant_slug)
+        try:
+            settings_service = get_service(PLATFORM_SETTINGS_SERVICE)
+            settings_service.update_billing_profile(
+                billing_company_name=company or None,
+                google_review_url=review_url or None,
+                updated_by=updated_by,
+            )
+        finally:
+            current_tenant_schema.reset(tenant_ctx)
+
     def start_pending(
         self,
         *,
@@ -180,6 +206,7 @@ class DemoNewSignupUseCase:
         plan_code: str,
         subscription_period: str,
         demo_session_id: str,
+        google_review_url: str = "",
     ) -> DemoSignupResult:
         """Slug foglalva; megerősítő email, provision nélkül."""
         primary_domain = demo_host_hint(slug, self._tenant_base_domain)
@@ -196,6 +223,7 @@ class DemoNewSignupUseCase:
                 preferred_locale=preferred_locale,
                 plan_code=plan_code,
                 subscription_period=subscription_period,
+                google_review_url=google_review_url,
             )
             self._send_confirm_signup_email(
                 email=email,
@@ -237,6 +265,7 @@ class DemoNewSignupUseCase:
             preferred_locale=locale,
             plan_code=str(pending.get("plan_code") or "free"),
             subscription_period=str(pending.get("subscription_period") or "monthly"),
+            google_review_url=str(pending.get("google_review_url") or ""),
         )
         self._send_confirm_signup_email(
             email=str(pending["email"]),
@@ -355,6 +384,13 @@ class DemoNewSignupUseCase:
             finally:
                 current_tenant_schema.reset(tenant_ctx)
 
+            self._persist_signup_company_profile(
+                tenant_slug=slug,
+                tenant_name=tenant_name,
+                google_review_url=str(pending.get("google_review_url") or ""),
+                updated_by=tenant_owner.id,
+            )
+
             set_password_url = self._send_demo_set_password_email(
                 tenant_slug=slug,
                 user_id=tenant_owner.id,
@@ -401,6 +437,7 @@ class DemoNewSignupUseCase:
         plan_code: str,
         subscription_period: str,
         demo_session_id: str,
+        google_review_url: str = "",
     ) -> DemoSignupResult:
         """Legacy azonnali provision (ha email verification ki van kapcsolva)."""
         trial_days = max(1, int(getattr(settings, "demo_trial_days", 7) or 7))
@@ -455,6 +492,13 @@ class DemoNewSignupUseCase:
                     hook.handle(signup_context)
             finally:
                 current_tenant_schema.reset(tenant_ctx)
+
+            self._persist_signup_company_profile(
+                tenant_slug=slug,
+                tenant_name=tenant_name,
+                google_review_url=google_review_url,
+                updated_by=tenant_owner.id,
+            )
 
             self._send_demo_set_password_email(
                 tenant_slug=slug,
